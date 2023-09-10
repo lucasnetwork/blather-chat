@@ -1,7 +1,8 @@
 import { createStore } from "solid-js/store";
 import matrixcs from "matrix-js-sdk";
 import { createMemo, createSignal } from "solid-js";
-import crypto from "crypto"
+import crypto from "crypto";
+import GRECaptch from "../../lib/solid-grecaptcha";
 interface ErrorMatrixRegister {
   data: {
     errcode: "M_MISSING_PARAM";
@@ -29,6 +30,7 @@ const Register = () => {
     Array<"m.login.email.identity" | "m.login.recaptcha">
   >([]);
   const [session, setSession] = createSignal("");
+  const [recaptchat, setrecaptchat] = createSignal("");
   const createClient = createMemo(() => {
     return matrixcs.createClient({ baseUrl: fields.server });
   });
@@ -39,33 +41,32 @@ const Register = () => {
       if (stage === "m.login.email.identity") {
         const response = await client.register(
           fields.userName,
-          fields.password,null
+          fields.password,
+          null
         );
-       
       } else if (stage === "m.login.recaptcha") {
-        try{
-            const response = await client.register(
-              fields.userName,
-              fields.password,
-              null,
-              {
-                type: "m.login.recaptcha",
-                session: session(),
-              }
-            );
-            
-        }catch{
-            console.log("oioio")
-            setStagesCompleted([...stagesCompleted(), "m.login.recaptcha"]);
-            await client.register(
-                fields.userName,
-                fields.password,
-                session() || null,
-                {
-                  type: "m.login.email.identity",
-                  email: "",
-                }
-              );
+        try {
+          const response = await client.register(
+            fields.userName,
+            fields.password,
+            null,
+            {
+              type: "m.login.recaptcha",
+              session: session(),
+            }
+          );
+        } catch {
+          console.log("oioio");
+          setStagesCompleted([...stagesCompleted(), "m.login.recaptcha"]);
+          await client.register(
+            fields.userName,
+            fields.password,
+            session() || null,
+            {
+              type: "m.login.email.identity",
+              email: "",
+            }
+          );
         }
       }
     } catch (e: any) {
@@ -84,58 +85,61 @@ const Register = () => {
         );
         switch (getFirstStateThatNotCompleted) {
           case "m.login.recaptcha": {
-          
             setSession(error.data.session);
             setCurrentStage(() => "m.login.recaptcha");
-            grecaptcha.render("html_element", {
-              sitekey: error.data.params["m.login.recaptcha"]?.public_key,
-              callback: async (responseCaptch) => {
-                console.log("response", responseCaptch);
-                try{
-
-                    const response = await client.register(
-                      fields.userName,
-                      fields.password,
-                      null,
-                      {
-                        type: "m.login.recaptcha",
-                        session: session(),
-                        response: responseCaptch,
-                      }
-                    );
-                }catch{
-                    const randomString = crypto.randomBytes(8).toString("hex");
-                    const response = await client.requestRegisterEmailToken("",randomString,1)
-                    setStagesCompleted([...stagesCompleted(), "m.login.recaptcha"]);
-                    await client.register(
-                        fields.userName,
-                        fields.password,
-                        session() || null,
-                        {
-                          type: "m.login.email.identity",
-                          email: "",
-                          threepidCreds:{
-
-                            "sid":response.sid,
-                            "client_secret":randomString
-                          },
-                          threepid_creds:{
-
-                            "sid":response.sid,
-                            "client_secret":randomString
-                          }
-                        },
-                        
-                      );
-                }
-              },
-            });
+            setrecaptchat(
+              () => error.data.params["m.login.recaptcha"]?.public_key
+            ); 
           }
         }
       }
       console.log("erroir", e.data);
     }
   };
+
+  const onVerify = (responseCaptch:string) => {
+    async function callback() {
+    var client = createClient();
+      try {
+         await client.register(
+          fields.userName,
+          fields.password,
+          null,
+          {
+            type: "m.login.recaptcha",
+            session: session(),
+            response: responseCaptch,
+          }
+        );
+      } catch {
+        const randomString = crypto.randomBytes(8).toString("hex");
+        const response = await client.requestRegisterEmailToken(
+          "",
+          randomString,
+          1
+        );
+        setStagesCompleted([...stagesCompleted(), "m.login.recaptcha"]);
+        await client.register(
+          fields.userName,
+          fields.password,
+          session() || null,
+          {
+            type: "m.login.email.identity",
+            email: "",
+            threepidCreds: {
+              sid: response.sid,
+              client_secret: randomString,
+            },
+            threepid_creds: {
+              sid: response.sid,
+              client_secret: randomString,
+            },
+          }
+        );
+      }
+    }
+    callback();
+  }
 
   return (
     <div>
@@ -172,27 +176,15 @@ const Register = () => {
             </fieldset>
           </div>
         )}
-        {/* {
-            currentStage() === "m.login.recaptcha" &&    <HCaptcha
-            sitekey={recaptcha()}
-
-            config={{
-                host:"http://test.mydomain.com/",
-
-                
-            }}
-            onVerify={token => console.log(token)}
-          />
-        } */}
 
         <button>Logar</button>
       </form>
-
-      <form action="?" method="POST">
-        <div id="html_element" />
-        <br />
-        <input type="submit" value="Submit" />
-      </form>
+      {currentStage() === "m.login.recaptcha" && (
+        <GRECaptch
+          siteKey={recaptchat()}
+          onVerify={onVerify}
+        />
+      )}
     </div>
   );
 };
