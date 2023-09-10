@@ -22,7 +22,7 @@ declare var grecaptcha: {
     render:(HTMLDivElement,params:ConfigRender)=>string
 };
 
-const GCaptch:Component<GCaptchaProps> =(props)=>{
+const GRECaptch:Component<GCaptchaProps> =(props)=>{
     let captcha_ref = HTMLDivElement | undefined
     const isApiReady = () => typeof window.grecaptcha !== "undefined";
     const script_url = () => generateScriptUrl(GCAPTCHA_ONLOAD_FUNCTION_NAME);
@@ -77,4 +77,4 @@ const GCaptch:Component<GCaptchaProps> =(props)=>{
     )
 }
 
-export default GCaptch
+export default GRECaptch
