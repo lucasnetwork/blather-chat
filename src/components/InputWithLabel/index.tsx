@@ -1,6 +1,10 @@
-import { splitProps } from "solid-js";
+import { Component, JSX, splitProps } from "solid-js";
 
-const Input = (_props) =>{
+interface IInput extends  JSX.InputHTMLAttributes<HTMLInputElement>{
+    label:string
+}
+
+const Input:Component<IInput> = (_props) =>{
       const [props, rest] = splitProps(_props, ["label"]);
 return <fieldset class="flex flex-col">
         <label class="mb-2">{props.label}</label>
