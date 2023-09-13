@@ -2,7 +2,9 @@ import { createStore } from "solid-js/store";
 import matrixcs from "matrix-js-sdk";
 import { createMemo, createSignal } from "solid-js";
 import crypto from "crypto";
-import GRECaptch from "../../lib/solid-grecaptcha";
+import GReCaptch from "solid-grecaptcha"
+import Button from "../../components/Button";
+import Input from "../../components/InputWithLabel";
 interface ErrorMatrixRegister {
   data: {
     errcode: "M_MISSING_PARAM";
@@ -39,35 +41,11 @@ const Register = () => {
     try {
       const stage = currentStage();
       if (stage === "m.login.email.identity") {
-        const response = await client.register(
+         await client.register(
           fields.userName,
           fields.password,
           null
         );
-      } else if (stage === "m.login.recaptcha") {
-        try {
-          const response = await client.register(
-            fields.userName,
-            fields.password,
-            null,
-            {
-              type: "m.login.recaptcha",
-              session: session(),
-            }
-          );
-        } catch {
-          console.log("oioio");
-          setStagesCompleted([...stagesCompleted(), "m.login.recaptcha"]);
-          await client.register(
-            fields.userName,
-            fields.password,
-            session() || null,
-            {
-              type: "m.login.email.identity",
-              email: "",
-            }
-          );
-        }
       }
     } catch (e: any) {
       const error: ErrorMatrixRegister = e;
@@ -142,8 +120,9 @@ const Register = () => {
   }
 
   return (
-    <div>
+    <div class="h-full w-full flex items-center justify-center bg-slate-900">
       <form
+      class="bg-white rounded-md p-8 pb-9"
         onSubmit={async (e) => {
           e.preventDefault();
 
@@ -157,30 +136,22 @@ const Register = () => {
           setCurrentStage(() => "m.login.email.identity");
         }}
       >
-        <fieldset>
-          <label>servidor url</label>
-          <input
-            value={fields.server}
-            onInput={(e) => setFields("server", e.target.value)}
-          />
-        </fieldset>
+        <Input label="servidor url"value ={fields.server}   onInput={(e) => setFields("server", e.target.value)}/>
+        
         {currentStage() === "m.login.email.identity" && (
           <div>
-            <fieldset>
-              <label>username</label>
-              <input onInput={(e) => setFields("userName", e.target.value)} />
-            </fieldset>
-            <fieldset>
-              <label>password</label>
-              <input onInput={(e) => setFields("password", e.target.value)} />
-            </fieldset>
+        <Input label="username"value ={fields.userName}   onInput={(e) => setFields("userName", e.target.value)}/>
+        <Input label="password"value ={fields.password}   onInput={(e) => setFields("password", e.target.value)}/>
+
           </div>
         )}
+  <div class="pt-5">
+        <Button label="logar"/>
 
-        <button>Logar</button>
+  </div>
       </form>
       {currentStage() === "m.login.recaptcha" && (
-        <GRECaptch
+        <GReCaptch
           siteKey={recaptchat()}
           onVerify={onVerify}
         />

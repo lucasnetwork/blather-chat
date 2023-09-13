@@ -3,7 +3,7 @@ import Login from '../pages/Login'
 import { Component } from 'solid-js'
 import Register from '../pages/Register'
 
-const Routers:Component =()=> <div>
+const Routers:Component =()=> 
      <Router>
 <Routes>
   <Route path="/" component={Login} />
@@ -11,5 +11,4 @@ const Routers:Component =()=> <div>
 </Routes>
 </Router>
 
-</div>
 export default Routers
