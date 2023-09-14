@@ -1,10 +1,22 @@
 import { createStore } from "solid-js/store";
 import matrixcs from "matrix-js-sdk";
-import { Match, Show, Switch, createMemo, createSignal } from "solid-js";
+import { Match, Show, Switch, createMemo, createSignal, For } from "solid-js";
 import crypto from "crypto";
 import GReCaptch from "solid-grecaptcha";
 import Button from "../../components/Button";
 import Input from "../../components/InputWithLabel";
+
+type flowType = Array<"m.login.email.identity" | "m.login.recaptcha">;
+const options = {
+  "m.login.password": {
+    label: "Senha",
+    type: "m.login.email.identity",
+  },
+  "m.login.application_service": {
+    label: "",
+  },
+};
+
 interface ErrorMatrixRegister {
   data: {
     errcode: "M_MISSING_PARAM";
@@ -30,6 +42,7 @@ interface ErrorMatrixInitialEmailRegister {
     session: string;
   };
 }
+
 const Register = () => {
   const [fields, setFields] = createStore({
     userName: "",
@@ -39,8 +52,9 @@ const Register = () => {
     confirmPassword: "",
     email: "",
   });
-  const [verifyTypesofFlows, setVerifyTypeOfFlows] =
-    createSignal<{ type: string }[]>();
+  const [verifyTypesofFlows, setVerifyTypeOfFlows] = createSignal<
+    { type: flowType }[]
+  >([]);
   const [currentStage, setCurrentStage] = createSignal<
     "m.login.email.identity" | "m.login.recaptcha"
   >();
@@ -57,7 +71,7 @@ const Register = () => {
     var client = createClient();
     try {
       await client.register(fields.userName, fields.password, null);
-    } catch (e) {
+    } catch (e: any) {
       const error: ErrorMatrixInitialEmailRegister = e;
       if (error.data.flows) {
         return error.data;
@@ -72,7 +86,7 @@ const Register = () => {
         session: fields.session,
         response: responseCaptch,
       });
-    } catch (e) {
+    } catch (e: any) {
       const error: ErrorMatrixRegister = e;
       if (error?.data?.completed?.find((err) => err === "m.login.recaptcha")) {
         return;
@@ -83,35 +97,34 @@ const Register = () => {
   };
 
   const onSubmit = async () => {
-    try {
-      const stage = currentStage();
-      if (stage === "m.login.email.identity") {
-        const response = await initialRegisterEmail();
-        if (!response) {
-          return;
-        }
-        const findRegisterType = response.flows.find((flow) =>
-          flow.stages.find((stage) => stage === "m.login.email.identity"),
-        );
-        const getFirstStateThatNotCompleted = findRegisterType?.stages.find(
-          (stage) => {
-            const findIfStageCompleted = stagesCompleted().find(
-              (stageCompleted) => stageCompleted === stage,
-            );
-            return !findIfStageCompleted;
-          },
-        );
-        switch (getFirstStateThatNotCompleted) {
-          case "m.login.recaptcha": {
-            setFields("session", response.session);
-            setCurrentStage(() => "m.login.recaptcha");
-            setrecaptchat(
-              () => response.params["m.login.recaptcha"]?.public_key || "",
-            );
-          }
+    const stage = currentStage();
+    if (stage === "m.login.email.identity") {
+      const response = await initialRegisterEmail();
+      if (!response) {
+        return;
+      }
+      const findRegisterType = response.flows.find((flow) =>
+        flow.stages.find((stage) => stage === "m.login.email.identity"),
+      );
+      const getFirstStateThatNotCompleted = findRegisterType?.stages.find(
+        (stage) => {
+          const findIfStageCompleted = stagesCompleted().find(
+            (stageCompleted) => stageCompleted === stage,
+          );
+          return !findIfStageCompleted;
+        },
+      );
+      switch (getFirstStateThatNotCompleted) {
+        case "m.login.recaptcha": {
+          setFields("session", response.session);
+          setCurrentStage(() => "m.login.recaptcha");
+          setVerifyTypeOfFlows([]);
+          setrecaptchat(
+            () => response.params["m.login.recaptcha"]?.public_key || "",
+          );
         }
       }
-    } catch (e: any) {}
+    }
   };
 
   const onVerify = (responseCaptch: string) => {
@@ -159,21 +172,24 @@ const Register = () => {
       <div class="bg-white rounded-md p-8 pb-9 flex flex-col">
         <form
           onSubmit={async (e) => {
-            if (loading()) {
-              return;
-            }
-            e.preventDefault();
-            setLoading(true);
-            if (verifyTypesofFlows()) {
-              await onSubmit();
-              return;
-            }
-            const client = createClient();
-            const response = await client.loginFlows();
-            setVerifyTypeOfFlows(response.flows);
-            setCurrentStage(() => "m.login.email.identity");
+            try {
+              e.preventDefault();
+              if (loading()) {
+                return;
+              }
+              setLoading(true);
+              if (currentStage()) {
+                await onSubmit();
+                return;
+              }
+              const client = createClient();
+              const response = await client.loginFlows();
+              setVerifyTypeOfFlows(response.flows);
 
-            setLoading(false);
+              setLoading(false);
+            } catch {
+              setLoading(false);
+            }
           }}
         >
           <div class="mb-5">
@@ -183,6 +199,23 @@ const Register = () => {
               onInput={(e) => setFields("server", e.target.value)}
             />
           </div>
+          {verifyTypesofFlows()?.length > 0 && (
+            <select
+              onChange={(e) => {
+                console.log(e.target.value);
+                setCurrentStage(() => e.target.value);
+              }}
+            >
+              <option>selecione uma opção</option>
+              <For each={verifyTypesofFlows()}>
+                {(cat, i) => (
+                  <option value={options[cat.type].type}>
+                    {options[cat.type].label}{" "}
+                  </option>
+                )}
+              </For>
+            </select>
+          )}
 
           {currentStage() === "m.login.email.identity" && (
             <div class="flex flex-col gap-y-5">
