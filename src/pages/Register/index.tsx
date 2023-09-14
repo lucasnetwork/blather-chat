@@ -15,6 +15,19 @@ interface ErrorMatrixRegister {
       };
     };
     session: string;
+    completed?: ["m.login.recaptcha"];
+  };
+}
+interface ErrorMatrixInitialEmailRegister {
+  data: {
+    errcode: "M_MISSING_PARAM";
+    flows: { stages: Array<"m.login.email.identity" | "m.login.recaptcha"> }[];
+    params: {
+      "m.login.recaptcha"?: {
+        public_key: string;
+      };
+    };
+    session: string;
   };
 }
 const Register = () => {
@@ -22,9 +35,9 @@ const Register = () => {
     userName: "",
     password: "",
     server: "",
-    session:"",
-    confirmPassword:"",
-    email:""
+    session: "",
+    confirmPassword: "",
+    email: "",
   });
   const [verifyTypesofFlows, setVerifyTypeOfFlows] =
     createSignal<{ type: string }[]>();
@@ -39,55 +52,78 @@ const Register = () => {
   const createClient = createMemo(() => {
     return matrixcs.createClient({ baseUrl: fields.server });
   });
-  const onSubmit = async () => {
+
+  const initialRegisterEmail = async () => {
     var client = createClient();
+    try {
+      await client.register(fields.userName, fields.password, null);
+    } catch (e) {
+      const error: ErrorMatrixInitialEmailRegister = e;
+      if (error.data.flows) {
+        return error.data;
+      }
+    }
+  };
+  const registerRecaptcha = async (responseCaptch: string) => {
+    var client = createClient();
+    try {
+      await client.register(fields.userName, fields.password, null, {
+        type: "m.login.recaptcha",
+        session: fields.session,
+        response: responseCaptch,
+      });
+    } catch (e) {
+      const error: ErrorMatrixRegister = e;
+      if (error?.data?.completed?.find((err) => err === "m.login.recaptcha")) {
+        return;
+      } else {
+        throw e;
+      }
+    }
+  };
+
+  const onSubmit = async () => {
     try {
       const stage = currentStage();
       if (stage === "m.login.email.identity") {
-        await client.register(fields.userName, fields.password, null);
-      }
-    } catch (e: any) {
-      const error: ErrorMatrixRegister = e;
-      if (error.data.flows) {
-        const findRegisterType = error.data.flows.find((flow) =>
-          flow.stages.find((stage) => stage === "m.login.email.identity")
+        const response = await initialRegisterEmail();
+        if (!response) {
+          return;
+        }
+        const findRegisterType = response.flows.find((flow) =>
+          flow.stages.find((stage) => stage === "m.login.email.identity"),
         );
         const getFirstStateThatNotCompleted = findRegisterType?.stages.find(
           (stage) => {
             const findIfStageCompleted = stagesCompleted().find(
-              (stageCompleted) => stageCompleted === stage
+              (stageCompleted) => stageCompleted === stage,
             );
             return !findIfStageCompleted;
-          }
+          },
         );
         switch (getFirstStateThatNotCompleted) {
           case "m.login.recaptcha": {
-            setFields("session",error.data.session);
+            setFields("session", response.session);
             setCurrentStage(() => "m.login.recaptcha");
             setrecaptchat(
-              () => error.data.params["m.login.recaptcha"]?.public_key
+              () => response.params["m.login.recaptcha"]?.public_key || "",
             );
           }
         }
       }
-    }
+    } catch (e: any) {}
   };
 
   const onVerify = (responseCaptch: string) => {
     async function callback() {
       var client = createClient();
       try {
-        await client.register(fields.userName, fields.password, null, {
-          type: "m.login.recaptcha",
-          session: fields.session,
-          response: responseCaptch,
-        });
-      } catch {
+        await registerRecaptcha(responseCaptch);
         const randomString = crypto.randomBytes(8).toString("hex");
         const response = await client.requestRegisterEmailToken(
-          "",
+          fields.email,
           randomString,
-          1
+          1,
         );
         setStagesCompleted([...stagesCompleted(), "m.login.recaptcha"]);
         await client.register(
@@ -105,8 +141,14 @@ const Register = () => {
               sid: response.sid,
               client_secret: randomString,
             },
-          }
+          },
+          {
+            sid: response.sid,
+            client_secret: randomString,
+          },
         );
+      } catch (e) {
+        console.log(e);
       }
     }
     callback();
@@ -114,76 +156,78 @@ const Register = () => {
 
   return (
     <div class="h-full w-full flex items-center justify-center bg-slate-900">
-      <div  class="bg-white rounded-md p-8 pb-9 flex flex-col">
-      <form
-        onSubmit={async (e) => {
-          e.preventDefault();
-          setLoading(true);
-          if (verifyTypesofFlows()) {
-            await onSubmit();
-            return;
-          }
-          const client = createClient();
-          const response = await client.loginFlows();
-          setVerifyTypeOfFlows(response.flows);
-          setCurrentStage(() => "m.login.email.identity");
+      <div class="bg-white rounded-md p-8 pb-9 flex flex-col">
+        <form
+          onSubmit={async (e) => {
+            if (loading()) {
+              return;
+            }
+            e.preventDefault();
+            setLoading(true);
+            if (verifyTypesofFlows()) {
+              await onSubmit();
+              return;
+            }
+            const client = createClient();
+            const response = await client.loginFlows();
+            setVerifyTypeOfFlows(response.flows);
+            setCurrentStage(() => "m.login.email.identity");
 
-          setLoading(false);
-        }}
-      >
-        <div class="mb-5">
-
-        <Input
-          label="servidor url"
-          value={fields.server}
-          onInput={(e) => setFields("server", e.target.value)}
-        />
-        </div>
-
-        {currentStage() === "m.login.email.identity" && (
-          <div class="flex flex-col gap-y-5">
-            <div class="flex  gap-x-2">
-              <Input
-                label="username"
-                value={fields.userName}
-                onInput={(e) => setFields("userName", e.target.value)}
-              />
-              <Input
-                label="E-mail"
-                value={fields.email}
-                onInput={(e) => setFields("email", e.target.value)}
-              />
-            </div>
-            <div class="flex gap-x-2">
-              <Input
-                label="password"
-                value={fields.password}
-                onInput={(e) => setFields("password", e.target.value)}
-              />
-              <Input
-                label="confirmPassword"
-                value={fields.confirmPassword}
-                onInput={(e) => setFields("confirmPassword", e.target.value)}
-              />
-            </div>
+            setLoading(false);
+          }}
+        >
+          <div class="mb-5">
+            <Input
+              label="servidor url"
+              value={fields.server}
+              onInput={(e) => setFields("server", e.target.value)}
+            />
           </div>
+
+          {currentStage() === "m.login.email.identity" && (
+            <div class="flex flex-col gap-y-5">
+              <div class="flex  gap-x-2">
+                <Input
+                  label="username"
+                  value={fields.userName}
+                  onInput={(e) => setFields("userName", e.target.value)}
+                />
+                <Input
+                  label="E-mail"
+                  value={fields.email}
+                  onInput={(e) => setFields("email", e.target.value)}
+                />
+              </div>
+              <div class="flex gap-x-2">
+                <Input
+                  label="password"
+                  value={fields.password}
+                  onInput={(e) => setFields("password", e.target.value)}
+                />
+                <Input
+                  label="confirmPassword"
+                  value={fields.confirmPassword}
+                  onInput={(e) => setFields("confirmPassword", e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+          <div class="pt-5">
+            <Show when={currentStage() !== "m.login.recaptcha"}>
+              <Button label="logar" loading={loading()}>
+                <Switch fallback="">
+                  <Match when={!currentStage()}>Verificar servidor</Match>
+                  <Match when={currentStage() === "m.login.email.identity"}>
+                    Logar
+                  </Match>
+                </Switch>
+              </Button>
+            </Show>
+          </div>
+        </form>
+        {currentStage() === "m.login.recaptcha" && (
+          <GReCaptch siteKey={recaptchat()} onVerify={onVerify} />
         )}
-        <div class="pt-5">
-          <Show when={currentStage() !== "m.login.recaptcha"}>
-            <Button label="logar" loading={loading()}>
-              <Switch fallback="">
-                <Match when={!currentStage()}>Verificar servidor</Match>
-                <Match when={currentStage() === "m.login.email.identity"}>
-                  Logar
-                </Match>
-              </Switch>
-            </Button>
-          </Show>
-        </div>
-      </form>
-      {currentStage() === "m.login.recaptcha" && (
-        <GReCaptch siteKey={recaptchat()} onVerify={onVerify} />
-      )}
       </div>
     </div>
   );
