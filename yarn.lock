@@ -3412,10 +3412,10 @@ solid-devtools@^0.27.3:
     "@solid-devtools/debugger" "^0.22.4"
     "@solid-devtools/shared" "^0.12.3"
 
-solid-grecaptcha@^0.1.5:
-  version "0.1.5"
-  resolved "https://registry.yarnpkg.com/solid-grecaptcha/-/solid-grecaptcha-0.1.5.tgz#45934a253d3228ebe2460e8a23159148a5ec154c"
-  integrity sha512-ypN5bfZeoEevhIuGaKG419+BAy3ezSIcNozNbP9SkUVC+EyMgwM+GsLQpOdhfcDGPfSkP+8xapefC/bKVH4QNg==
+solid-grecaptcha@^0.1.6:
+  version "0.1.6"
+  resolved "https://registry.yarnpkg.com/solid-grecaptcha/-/solid-grecaptcha-0.1.6.tgz#e232f64e8e2b70adb3aa0a1a6574a9d25a5b7849"
+  integrity sha512-PzTsc8/ehkmw7a4mZuB7wbtLl6+7AxC3ZtVzewfl6WZuHHtlYVHHx/S75BLUywSh12cIFc1zNGwNNHWp9Malqw==
   dependencies:
     "@solid-primitives/script-loader" "^2.0.2"
 
