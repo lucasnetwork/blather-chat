@@ -1,12 +1,11 @@
 import { createStore } from "solid-js/store";
-import matrixcs from "matrix-js-sdk";
+import matrixcs, { LoginFlow } from "matrix-js-sdk";
 import { Match, Show, Switch, createMemo, createSignal, For } from "solid-js";
 import crypto from "crypto";
 import GReCaptch from "solid-grecaptcha";
 import Button from "../../components/Button";
 import Input from "../../components/InputWithLabel";
 
-type flowType = Array<"m.login.email.identity" | "m.login.recaptcha">;
 const options = {
   "m.login.password": {
     label: "Senha",
@@ -52,12 +51,10 @@ const Register = () => {
     confirmPassword: "",
     email: "",
   });
-  const [verifyTypesofFlows, setVerifyTypeOfFlows] = createSignal<
-    { type: flowType }[]
-  >([]);
-  const [currentStage, setCurrentStage] = createSignal<
-    "m.login.email.identity" | "m.login.recaptcha"
-  >();
+  const [verifyTypesofFlows, setVerifyTypeOfFlows] = createSignal<LoginFlow[]>(
+    [],
+  );
+  const [currentStage, setCurrentStage] = createSignal<LoginFlow>();
   const [stagesCompleted, setStagesCompleted] = createSignal<
     Array<"m.login.email.identity" | "m.login.recaptcha">
   >([]);

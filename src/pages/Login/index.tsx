@@ -1,23 +1,48 @@
-import { For, Show, Switch, Match, createSignal, createMemo } from "solid-js";
+import {
+  For,
+  Show,
+  Switch,
+  Match,
+  createSignal,
+  createMemo,
+  createEffect,
+} from "solid-js";
 import { createStore } from "solid-js/store";
-import matrixcs from "matrix-js-sdk";
+import matrixcs, { LoginFlow } from "matrix-js-sdk";
 import Input from "../../components/InputWithLabel";
 import { useNavigate } from "@solidjs/router";
 import Button from "../../components/Button";
-type flowType = Array<"m.login.email.identity" | "m.login.recaptcha">;
-const options = {
-  "m.login.password": {
-    label: "Senha",
-    type: "m.login.email.identity",
+type typePasswordLogin = "m.id.phone" | "m.id.thirdparty" | "m.id.user";
+
+const options: {
+  [key: string]: {
+    label: string;
+    type: typePasswordLogin;
+  };
+} = {
+  "m.id.phone": {
+    label: "Telephone",
+    type: "m.id.phone",
   },
-  "m.login.application_service": {
-    label: "",
+  "m.id.thirdparty": {
+    label: "Email",
+    type: "m.id.thirdparty",
+  },
+  "m.id.user": {
+    label: "Nome de usuário",
+    type: "m.id.user",
   },
 };
 
+const arrayCurrentTypePasswordLogin: Array<typePasswordLogin> = [
+  "m.id.phone",
+  "m.id.thirdparty",
+  "m.id.user",
+];
+
 const Login = () => {
   const [fields, setFields] = createStore({
-    email: "",
+    value: "",
     password: "",
     server: "",
   });
@@ -25,10 +50,10 @@ const Login = () => {
     return matrixcs.createClient({ baseUrl: fields.server });
   });
   const [loading, setLoading] = createSignal(false);
+  const [arrayTypePasswordLogin] = createSignal(arrayCurrentTypePasswordLogin);
   const navigation = useNavigate();
-  const [currentStage, setCurrentStage] = createSignal<
-    "m.login.email.identity" | "m.login.recaptcha"
-  >();
+  const [currentType, setCurrentType] =
+    createSignal<typePasswordLogin>("m.id.user");
   const onSubmit = async () => {
     const client = createClient();
     const response = await client.login("m.login.password", {
@@ -43,9 +68,20 @@ const Login = () => {
     navigation("dashboard");
     console.log(response);
   };
-  const [verifyTypesofFlows, setVerifyTypeOfFlows] = createSignal<
-    { type: flowType }[]
-  >([]);
+  const [verifyTypesofFlows, setVerifyTypeOfFlows] = createSignal<LoginFlow[]>(
+    [],
+  );
+
+  const label = createMemo(() => {
+    switch (currentType()) {
+      case "m.id.phone":
+        return "Telephone";
+      case "m.id.thirdparty":
+        return "Email";
+      case "m.id.user":
+        return "username";
+    }
+  });
   return (
     <div class="h-full w-full flex items-center justify-center bg-slate-900">
       <div class="bg-white rounded-md p-8 pb-9 flex flex-col">
@@ -53,10 +89,10 @@ const Login = () => {
           onSubmit={async (e) => {
             var client = createClient();
             e.preventDefault();
-            if (currentStage()) {
-              await onSubmit();
-              return;
-            }
+            // if (currentStage()) {
+            //   await onSubmit();
+            //   return;
+            // }
             const response = await client.loginFlows();
             console.log(response);
             setVerifyTypeOfFlows(response.flows);
@@ -69,43 +105,40 @@ const Login = () => {
               onInput={(e) => setFields("server", e.target.value)}
             />
           </div>
-          {verifyTypesofFlows()?.length > 0 && (
-            <select
-              onChange={(e) => {
-                console.log(e.target.value);
-                setCurrentStage(() => e.target.value);
-              }}
+          <select
+            onChange={(e) => {
+              setCurrentType(() => e.target.value as typePasswordLogin);
+              setFields("value", "");
+            }}
+          >
+            <option>selecione uma opção</option>
+            <For
+              each={arrayTypePasswordLogin()}
+              fallback={<div>Loading...</div>}
             >
-              <option>selecione uma opção</option>
-              <For each={verifyTypesofFlows()}>
-                {(cat, i) => (
-                  <option value={options[cat.type].type}>
-                    {options[cat.type].label}{" "}
-                  </option>
-                )}
-              </For>
-            </select>
-          )}
+              {(cat) => (
+                <option value={options[cat].type}>{options[cat].label}</option>
+              )}
+            </For>
+          </select>
 
-          {currentStage() === "m.login.email.identity" && (
-            <div class="flex flex-col gap-y-5">
-              <div class="flex  gap-x-2">
-                <Input
-                  label="E-mail"
-                  value={fields.email}
-                  onInput={(e) => setFields("email", e.target.value)}
-                />
-              </div>
-              <div class="flex gap-x-2">
-                <Input
-                  label="password"
-                  value={fields.password}
-                  onInput={(e) => setFields("password", e.target.value)}
-                />
-              </div>
+          <div class="flex flex-col gap-y-5">
+            <div class="flex  gap-x-2">
+              <Input
+                label={label()}
+                value={fields.value}
+                onInput={(e) => setFields("value", e.target.value)}
+              />
             </div>
-          )}
-          <div class="pt-5">
+            <div class="flex gap-x-2">
+              <Input
+                label="password"
+                value={fields.password}
+                onInput={(e) => setFields("password", e.target.value)}
+              />
+            </div>
+          </div>
+          {/* <div class="pt-5">
             <Show when={currentStage() !== "m.login.recaptcha"}>
               <Button label="logar" loading={loading()}>
                 <Switch fallback="">
@@ -116,7 +149,7 @@ const Login = () => {
                 </Switch>
               </Button>
             </Show>
-          </div>
+          </div> */}
         </form>
       </div>
     </div>
