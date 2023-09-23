@@ -10,8 +10,10 @@ import {
 import { createStore } from "solid-js/store";
 import matrixcs, { LoginFlow } from "matrix-js-sdk";
 import Input from "../../components/InputWithLabel";
-import { useNavigate } from "@solidjs/router";
+import { useLocation, useNavigate, useSearchParams } from "@solidjs/router";
 import Button from "../../components/Button";
+import GRECaptch from "solid-grecaptcha";
+import { createScriptLoader } from "@solid-primitives/script-loader";
 type typePasswordLogin = "m.id.phone" | "m.id.thirdparty" | "m.id.user";
 
 const options: {
@@ -54,6 +56,8 @@ const Login = () => {
   const navigation = useNavigate();
   const [currentType, setCurrentType] =
     createSignal<typePasswordLogin>("m.id.user");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [oauthAuthenticates, setOAuthAuthenticates] = createSignal([]);
   const onSubmit = async () => {
     const client = createClient();
     const response = await client.login("m.login.password", {
@@ -71,6 +75,12 @@ const Login = () => {
   const [verifyTypesofFlows, setVerifyTypeOfFlows] = createSignal<LoginFlow[]>(
     [],
   );
+  createEffect(() => {
+    const url = localStorage.getItem("clientUrl");
+    if (url) {
+      setFields("server", url);
+    }
+  });
 
   const label = createMemo(() => {
     switch (currentType()) {
@@ -81,6 +91,22 @@ const Login = () => {
       case "m.id.user":
         return "username";
     }
+  });
+  createEffect(() => {
+    if (!fields.server) {
+      return;
+    }
+    console.log(searchParams.loginToken);
+    async function callback() {
+      const client = createClient();
+      const response = await client.login("m.login.token", {
+        token: searchParams.loginToken,
+      });
+      localStorage.setItem("user", JSON.stringify(response));
+
+      navigation("dashboard");
+    }
+    callback();
   });
   return (
     <div class="h-full w-full flex items-center justify-center bg-slate-900">
@@ -93,9 +119,6 @@ const Login = () => {
             //   await onSubmit();
             //   return;
             // }
-            const response = await client.loginFlows();
-            console.log(response);
-            setVerifyTypeOfFlows(response.flows);
           }}
         >
           <div class="mb-5">
@@ -103,6 +126,23 @@ const Login = () => {
               label="servidor url"
               value={fields.server}
               onInput={(e) => setFields("server", e.target.value)}
+              onBlur={async () => {
+                try {
+                  var client = createClient();
+                  const response = await client.loginFlows();
+                  localStorage.setItem("clientUrl", fields.server);
+                  console.log(response);
+                  response.flows.forEach((flow) => {
+                    if (flow.type === "m.login.sso") {
+                      console.log(flow.type);
+                      setOAuthAuthenticates(flow.identity_providers);
+                    }
+                  });
+                  setVerifyTypeOfFlows(response.flows);
+                } catch (e) {
+                  console.log("erre", e);
+                }
+              }}
             />
           </div>
           <select
@@ -138,18 +178,39 @@ const Login = () => {
               />
             </div>
           </div>
-          {/* <div class="pt-5">
-            <Show when={currentStage() !== "m.login.recaptcha"}>
-              <Button label="logar" loading={loading()}>
-                <Switch fallback="">
+          <div class="pt-5">
+            {/* <Show when={currentStage() !== "m.login.recaptcha"}> */}
+            <Button label="logar" loading={loading()}>
+              {/* <Switch fallback="">
                   <Match when={!currentStage()}>Verificar servidor</Match>
                   <Match when={currentStage() === "m.login.email.identity"}>
-                    Logar
                   </Match>
-                </Switch>
-              </Button>
-            </Show>
-          </div> */}
+                </Switch> */}
+              Logar
+            </Button>
+            {/* </Show> */}
+          </div>
+          <For each={oauthAuthenticates()}>
+            {(auth) => (
+              <button
+                type="button"
+                onClick={() => {
+                  console.log(auth);
+                  const client = createClient();
+                  const responsesso = client.getSsoLoginUrl(
+                    "http://localhost:3000/",
+                    "sso",
+                    auth.id,
+                  );
+                  console.log(responsesso);
+                  window.location.href = responsesso;
+                }}
+              >
+                <p>{auth.name}</p>
+                <img src={auth.icon} />
+              </button>
+            )}
+          </For>
         </form>
       </div>
     </div>
