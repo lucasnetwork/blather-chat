@@ -1,20 +1,22 @@
 import {
   For,
-  Show,
-  Switch,
-  Match,
   createSignal,
   createMemo,
   createEffect,
+  onMount,
+  Show,
 } from "solid-js";
 import { createStore } from "solid-js/store";
 import matrixcs, { LoginFlow } from "matrix-js-sdk";
 import Input from "../../components/InputWithLabel";
-import { useLocation, useNavigate, useSearchParams } from "@solidjs/router";
+import { useNavigate, useSearchParams } from "@solidjs/router";
 import Button from "../../components/Button";
-import GRECaptch from "solid-grecaptcha";
-import { createScriptLoader } from "@solid-primitives/script-loader";
-type typePasswordLogin = "m.id.phone" | "m.id.thirdparty" | "m.id.user";
+import {
+  IdentityProvider,
+  getLoginFlows,
+  loginPassword,
+  typePasswordLogin,
+} from "../../lib/login";
 
 const options: {
   [key: string]: {
@@ -49,38 +51,38 @@ const Login = () => {
     server: "",
   });
   const createClient = createMemo(() => {
-    return matrixcs.createClient({ baseUrl: fields.server });
+    return matrixcs.createClient({ baseUrl: "https://" + fields.server });
   });
   const [loading, setLoading] = createSignal(false);
   const [arrayTypePasswordLogin] = createSignal(arrayCurrentTypePasswordLogin);
   const navigation = useNavigate();
   const [currentType, setCurrentType] =
     createSignal<typePasswordLogin>("m.id.user");
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [oauthAuthenticates, setOAuthAuthenticates] = createSignal([]);
+  const [searchParams] = useSearchParams();
+  const [oauthAuthenticates, setOAuthAuthenticates] = createSignal<
+    IdentityProvider[]
+  >([]);
   const onSubmit = async () => {
     const client = createClient();
-    const response = await client.login("m.login.password", {
+    const response = await loginPassword(client, {
       password: fields.password,
-      initial_device_display_name: "app.nitro.chat: Brave em Linux",
-      identifier: {
-        address: fields.email,
-        medium: "email",
-        type: "m.id.thirdparty",
-      },
+      type: currentType(),
+      email: fields.value,
+      user: fields.value,
     });
+    localStorage.setItem("user", JSON.stringify(response));
+    localStorage.setItem("clientUrl", fields.server);
     navigation("dashboard");
-    console.log(response);
   };
   const [verifyTypesofFlows, setVerifyTypeOfFlows] = createSignal<LoginFlow[]>(
     [],
   );
-  createEffect(() => {
-    const url = localStorage.getItem("clientUrl");
-    if (url) {
-      setFields("server", url);
-    }
-  });
+  // createEffect(() => {
+  //   const url = localStorage.getItem("clientUrl");
+  //   if (url) {
+  //     setFields("server", url);
+  //   }
+  // });
 
   const label = createMemo(() => {
     switch (currentType()) {
@@ -92,11 +94,23 @@ const Login = () => {
         return "username";
     }
   });
+  onMount(() => {
+    async function callback() {
+      const user = localStorage.getItem("user");
+      if (user) {
+        navigation("dashboard");
+      }
+    }
+    callback();
+  });
+  onMount(() => {
+    const url = localStorage.getItem("clientUrl");
+    setFields("server", url);
+  });
   createEffect(() => {
     if (!fields.server) {
       return;
     }
-    console.log(searchParams.loginToken);
     async function callback() {
       const client = createClient();
       const response = await client.login("m.login.token", {
@@ -108,78 +122,87 @@ const Login = () => {
     }
     callback();
   });
+  const existPasswordLogin = createMemo(() => {
+    const values = verifyTypesofFlows();
+    return values.find((value) => value.type === "m.login.password");
+  });
   return (
     <div class="h-full w-full flex items-center justify-center bg-slate-900">
       <div class="bg-white rounded-md p-8 pb-9 flex flex-col">
         <form
           onSubmit={async (e) => {
-            var client = createClient();
             e.preventDefault();
-            // if (currentStage()) {
-            //   await onSubmit();
-            //   return;
-            // }
+            if (fields.server) {
+              await onSubmit();
+            }
           }}
         >
           <div class="mb-5">
             <Input
               label="servidor url"
               value={fields.server}
-              onInput={(e) => setFields("server", e.target.value)}
-              onBlur={async () => {
-                try {
-                  var client = createClient();
-                  const response = await client.loginFlows();
-                  localStorage.setItem("clientUrl", fields.server);
-                  console.log(response);
-                  response.flows.forEach((flow) => {
-                    if (flow.type === "m.login.sso") {
-                      console.log(flow.type);
-                      setOAuthAuthenticates(flow.identity_providers);
-                    }
-                  });
-                  setVerifyTypeOfFlows(response.flows);
-                } catch (e) {
-                  console.log("erre", e);
+              onInput={(e) => {
+                setFields("server", e.target.value.replace("https://", ""));
+              }}
+              onBlur={() => {
+                async function callback() {
+                  try {
+                    var client = createClient();
+                    const response = await getLoginFlows(client);
+                    localStorage.setItem("clientUrl", fields.server);
+                    response.forEach((flow) => {
+                      if (flow.type === "m.login.sso") {
+                        console.log(flow.type);
+                        setOAuthAuthenticates(flow.identity_providers);
+                      }
+                    });
+                    setVerifyTypeOfFlows(response);
+                  } catch (e) {
+                    console.log("erre", e);
+                  }
                 }
+                callback();
               }}
             />
           </div>
-          <select
-            onChange={(e) => {
-              setCurrentType(() => e.target.value as typePasswordLogin);
-              setFields("value", "");
-            }}
-          >
-            <option>selecione uma opção</option>
-            <For
-              each={arrayTypePasswordLogin()}
-              fallback={<div>Loading...</div>}
-            >
-              {(cat) => (
-                <option value={options[cat].type}>{options[cat].label}</option>
-              )}
-            </For>
-          </select>
 
-          <div class="flex flex-col gap-y-5">
-            <div class="flex  gap-x-2">
-              <Input
-                label={label()}
-                value={fields.value}
-                onInput={(e) => setFields("value", e.target.value)}
-              />
+          <Show when={fields.server && existPasswordLogin()}>
+            <select
+              onChange={(e) => {
+                setCurrentType(() => e.target.value as typePasswordLogin);
+                setFields("value", "");
+              }}
+            >
+              <option>selecione uma opção</option>
+              <For
+                each={arrayTypePasswordLogin()}
+                fallback={<div>Loading...</div>}
+              >
+                {(cat) => (
+                  <option value={options[cat].type}>
+                    {options[cat].label}
+                  </option>
+                )}
+              </For>
+            </select>
+            <div class="flex flex-col gap-y-5">
+              <div class="flex gap-x-2">
+                <Input
+                  label={label()}
+                  value={fields.value}
+                  onInput={(e) => setFields("value", e.target.value)}
+                />
+              </div>
+              <div class="flex gap-x-2">
+                <Input
+                  label="password"
+                  value={fields.password}
+                  onInput={(e) => setFields("password", e.target.value)}
+                />
+              </div>
             </div>
-            <div class="flex gap-x-2">
-              <Input
-                label="password"
-                value={fields.password}
-                onInput={(e) => setFields("password", e.target.value)}
-              />
-            </div>
-          </div>
+          </Show>
           <div class="pt-5">
-            {/* <Show when={currentStage() !== "m.login.recaptcha"}> */}
             <Button label="logar" loading={loading()}>
               {/* <Switch fallback="">
                   <Match when={!currentStage()}>Verificar servidor</Match>
@@ -188,21 +211,18 @@ const Login = () => {
                 </Switch> */}
               Logar
             </Button>
-            {/* </Show> */}
           </div>
           <For each={oauthAuthenticates()}>
             {(auth) => (
               <button
                 type="button"
                 onClick={() => {
-                  console.log(auth);
                   const client = createClient();
                   const responsesso = client.getSsoLoginUrl(
                     "http://localhost:3000/",
                     "sso",
                     auth.id,
                   );
-                  console.log(responsesso);
                   window.location.href = responsesso;
                 }}
               >
