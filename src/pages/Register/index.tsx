@@ -1,46 +1,16 @@
 import { createStore } from "solid-js/store";
 import matrixcs, { LoginFlow } from "matrix-js-sdk";
 import { Match, Show, Switch, createMemo, createSignal, For } from "solid-js";
-import crypto from "crypto";
 import GReCaptch from "solid-grecaptcha";
 import Button from "../../components/Button";
 import Input from "../../components/InputWithLabel";
-
-const options = {
-  "m.login.password": {
-    label: "Senha",
-    type: "m.login.email.identity",
-  },
-  "m.login.application_service": {
-    label: "",
-  },
-};
-
-interface ErrorMatrixRegister {
-  data: {
-    errcode: "M_MISSING_PARAM";
-    flows: { stages: Array<"m.login.email.identity" | "m.login.recaptcha"> }[];
-    params: {
-      "m.login.recaptcha"?: {
-        public_key: string;
-      };
-    };
-    session: string;
-    completed?: ["m.login.recaptcha"];
-  };
-}
-interface ErrorMatrixInitialEmailRegister {
-  data: {
-    errcode: "M_MISSING_PARAM";
-    flows: { stages: Array<"m.login.email.identity" | "m.login.recaptcha"> }[];
-    params: {
-      "m.login.recaptcha"?: {
-        public_key: string;
-      };
-    };
-    session: string;
-  };
-}
+import { getLoginFlows } from "../../lib/login";
+import {
+  RegisterFlowStage,
+  initialRegister,
+  registerWithRecaptcha,
+} from "../../lib/register";
+import { useNavigate } from "@solidjs/router";
 
 const Register = () => {
   const [fields, setFields] = createStore({
@@ -54,67 +24,47 @@ const Register = () => {
   const [verifyTypesofFlows, setVerifyTypeOfFlows] = createSignal<LoginFlow[]>(
     [],
   );
-  const [currentStage, setCurrentStage] = createSignal<LoginFlow>();
+  const [currentStage, setCurrentStage] = createSignal<RegisterFlowStage>();
   const [stagesCompleted, setStagesCompleted] = createSignal<
     Array<"m.login.email.identity" | "m.login.recaptcha">
   >([]);
+  const navigation = useNavigate();
   const [loading, setLoading] = createSignal(false);
   const [recaptchat, setrecaptchat] = createSignal("");
   const createClient = createMemo(() => {
     return matrixcs.createClient({ baseUrl: fields.server });
   });
 
-  const initialRegisterEmail = async () => {
-    var client = createClient();
-    try {
-      await client.register(fields.userName, fields.password, null);
-    } catch (e: any) {
-      const error: ErrorMatrixInitialEmailRegister = e;
-      if (error.data.flows) {
-        return error.data;
-      }
-    }
-  };
-  const registerRecaptcha = async (responseCaptch: string) => {
-    var client = createClient();
-    try {
-      await client.register(fields.userName, fields.password, null, {
-        type: "m.login.recaptcha",
-        session: fields.session,
-        response: responseCaptch,
-      });
-    } catch (e: any) {
-      const error: ErrorMatrixRegister = e;
-      if (error?.data?.completed?.find((err) => err === "m.login.recaptcha")) {
-        return;
-      } else {
-        throw e;
-      }
-    }
-  };
+  const existPasswordLogin = createMemo(() => {
+    const values = verifyTypesofFlows();
+    console.log(values);
+    return values.find((value) => value.type === "m.login.password");
+  });
 
   const onSubmit = async () => {
     const stage = currentStage();
     if (stage === "m.login.email.identity") {
-      const response = await initialRegisterEmail();
+      const client = createClient();
+      const response = await initialRegister(client, {
+        password: fields.password,
+        username: fields.userName,
+      });
       if (!response) {
         return;
       }
-      const findRegisterType = response.flows.find((flow) =>
-        flow.stages.find((stage) => stage === "m.login.email.identity"),
-      );
-      const getFirstStateThatNotCompleted = findRegisterType?.stages.find(
-        (stage) => {
-          const findIfStageCompleted = stagesCompleted().find(
-            (stageCompleted) => stageCompleted === stage,
-          );
-          return !findIfStageCompleted;
-        },
-      );
-      switch (getFirstStateThatNotCompleted) {
+      let nextStage = "";
+      response.flows.forEach((flow) => {
+        if (
+          flow.stages.includes("m.login.email.identity") &&
+          flow.stages.includes("m.login.recaptcha")
+        ) {
+          nextStage = "m.login.recaptcha";
+        }
+      });
+      switch (nextStage) {
         case "m.login.recaptcha": {
           setFields("session", response.session);
-          setCurrentStage(() => "m.login.recaptcha");
+          setCurrentStage("m.login.recaptcha");
           setVerifyTypeOfFlows([]);
           setrecaptchat(
             () => response.params["m.login.recaptcha"]?.public_key || "",
@@ -128,35 +78,17 @@ const Register = () => {
     async function callback() {
       var client = createClient();
       try {
-        await registerRecaptcha(responseCaptch);
-        const randomString = crypto.randomBytes(8).toString("hex");
-        const response = await client.requestRegisterEmailToken(
-          fields.email,
-          randomString,
-          1,
-        );
+        const response = await registerWithRecaptcha(client, {
+          email: fields.email,
+          password: fields.password,
+          responseCaptch: responseCaptch,
+          session: fields.session,
+          username: fields.userName,
+        });
         setStagesCompleted([...stagesCompleted(), "m.login.recaptcha"]);
-        await client.register(
-          fields.userName,
-          fields.password,
-          fields.session || null,
-          {
-            type: "m.login.email.identity",
-            email: fields.email,
-            threepidCreds: {
-              sid: response.sid,
-              client_secret: randomString,
-            },
-            threepid_creds: {
-              sid: response.sid,
-              client_secret: randomString,
-            },
-          },
-          {
-            sid: response.sid,
-            client_secret: randomString,
-          },
-        );
+        if (!response) {
+          navigation("/");
+        }
       } catch (e) {
         console.log(e);
       }
@@ -174,15 +106,10 @@ const Register = () => {
               if (loading()) {
                 return;
               }
-              setLoading(true);
               if (currentStage()) {
                 await onSubmit();
                 return;
               }
-              const client = createClient();
-              const response = await client.loginFlows();
-              setVerifyTypeOfFlows(response.flows);
-
               setLoading(false);
             } catch {
               setLoading(false);
@@ -194,27 +121,31 @@ const Register = () => {
               label="servidor url"
               value={fields.server}
               onInput={(e) => setFields("server", e.target.value)}
+              onBlur={() => {
+                async function callback() {
+                  try {
+                    var client = createClient();
+                    const response = await getLoginFlows(client);
+                    localStorage.setItem("clientUrl", fields.server);
+                    console.log(response);
+                    setVerifyTypeOfFlows(response);
+                    setCurrentStage("m.login.email.identity");
+                  } catch (e) {
+                    console.log("erre", e);
+                  }
+                }
+                callback();
+              }}
             />
           </div>
-          {verifyTypesofFlows()?.length > 0 && (
-            <select
-              onChange={(e) => {
-                console.log(e.target.value);
-                setCurrentStage(() => e.target.value);
-              }}
-            >
-              <option>selecione uma opção</option>
-              <For each={verifyTypesofFlows()}>
-                {(cat, i) => (
-                  <option value={options[cat.type].type}>
-                    {options[cat.type].label}{" "}
-                  </option>
-                )}
-              </For>
-            </select>
-          )}
 
-          {currentStage() === "m.login.email.identity" && (
+          <Show
+            when={
+              fields.server &&
+              existPasswordLogin() &&
+              currentStage() !== "m.login.recaptcha"
+            }
+          >
             <div class="flex flex-col gap-y-5">
               <div class="flex  gap-x-2">
                 <Input
@@ -241,7 +172,7 @@ const Register = () => {
                 />
               </div>
             </div>
-          )}
+          </Show>
           <div class="pt-5">
             <Show when={currentStage() !== "m.login.recaptcha"}>
               <Button label="logar" loading={loading()}>
@@ -255,9 +186,9 @@ const Register = () => {
             </Show>
           </div>
         </form>
-        {currentStage() === "m.login.recaptcha" && (
+        <Show when={currentStage() === "m.login.recaptcha"}>
           <GReCaptch siteKey={recaptchat()} onVerify={onVerify} />
-        )}
+        </Show>
       </div>
     </div>
   );
