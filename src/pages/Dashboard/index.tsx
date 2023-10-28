@@ -1,23 +1,29 @@
-import { createEffect } from "solid-js";
+import { For, createEffect, createSignal } from "solid-js";
 import { useContextProvider } from "../../services/context";
+import ChatBanner from "./components/chatBanner";
 
 const Dashboard = () => {
-  const { createClient, data } = useContextProvider();
+  const { _, createClient, rooms } = useContextProvider();
+  // const [rooms, setRooms] = createSignal<string[]>([]);
   createEffect(() => {
     async function callback() {
       try {
         const client = createClient();
         const response = await client.getJoinedRooms();
-        console.log(response);
-        const test = await client.getRoomHierarchy(response.joined_rooms[0]);
-        console.log(test);
+        // setRooms(response.joined_rooms);
       } catch (e) {
         console.log(e);
       }
     }
-    callback();
+    // callback();
   });
-  return <div>Dashboard</div>;
+  return (
+    <div class="flex h-full w-full">
+      <aside class="h-full">
+        <For each={rooms()}>{(room, i) => <ChatBanner room={room} />}</For>
+      </aside>
+    </div>
+  );
 };
 
 export default Dashboard;
