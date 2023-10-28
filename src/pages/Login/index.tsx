@@ -150,9 +150,18 @@ const Login = () => {
                     var client = createClient();
                     const response = await getLoginFlows(client);
                     localStorage.setItem("clientUrl", fields.server);
-                    response.forEach((flow) => {
+                    response.forEach(async (flow) => {
                       if (flow.type === "m.login.sso") {
-                        console.log(flow.type);
+                        for (
+                          let i = 0;
+                          i < flow.identity_providers.length;
+                          i++
+                        ) {
+                          const icon = client.mxcUrlToHttp(
+                            flow.identity_providers[i].icon,
+                          );
+                          flow.identity_providers[i].icon = icon;
+                        }
                         setOAuthAuthenticates(flow.identity_providers);
                       }
                     });

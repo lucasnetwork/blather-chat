@@ -1,6 +1,6 @@
 import { createStore } from "solid-js/store";
 import matrixcs, { LoginFlow } from "matrix-js-sdk";
-import { Match, Show, Switch, createMemo, createSignal, For } from "solid-js";
+import { Match, Show, Switch, createMemo, createSignal } from "solid-js";
 import GReCaptch from "solid-grecaptcha";
 import Button from "../../components/Button";
 import Input from "../../components/InputWithLabel";
