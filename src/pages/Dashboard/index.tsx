@@ -1,27 +1,33 @@
-import { For, createEffect, createSignal } from "solid-js";
+import { For, Show } from "solid-js";
 import { useContextProvider } from "../../services/context";
 import ChatBanner from "./components/chatBanner";
 
 const Dashboard = () => {
-  const { _, createClient, rooms } = useContextProvider();
-  // const [rooms, setRooms] = createSignal<string[]>([]);
-  createEffect(() => {
-    async function callback() {
-      try {
-        const client = createClient();
-        const response = await client.getJoinedRooms();
-        // setRooms(response.joined_rooms);
-      } catch (e) {
-        console.log(e);
-      }
-    }
-    // callback();
-  });
+  const { rooms, currentRoom, loading } = useContextProvider();
+
   return (
     <div class="flex h-full w-full">
-      <aside class="h-full">
-        <For each={rooms()}>{(room, i) => <ChatBanner room={room} />}</For>
-      </aside>
+      <Show when={!loading()}>
+        <aside class="h-full w-full max-w-sm border-r-red-800 border">
+          <For each={rooms()}>{(room) => <ChatBanner room={room} />}</For>
+        </aside>
+        <main class="flex-1 flex flex-col">
+          <Show when={currentRoom()}>
+            <div class="flex-1">
+              <For each={currentRoom().chat}>
+                {(chat) => <p>{chat.content.body}</p>}
+              </For>
+            </div>
+            <form class="flex ">
+              <input
+                class="pr-4 pl-4 py-3 flex-1"
+                placeholder="digite a mensagem"
+              />
+              <button>Enviar</button>
+            </form>
+          </Show>
+        </main>
+      </Show>
     </div>
   );
 };

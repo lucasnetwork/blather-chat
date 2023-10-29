@@ -157,10 +157,14 @@ const Login = () => {
                           i < flow.identity_providers.length;
                           i++
                         ) {
-                          const icon = client.mxcUrlToHttp(
-                            flow.identity_providers[i].icon,
-                          );
-                          flow.identity_providers[i].icon = icon;
+                          const provider = flow.identity_providers[i] as any;
+                          if (provider.icon) {
+                            const icon = client.mxcUrlToHttp(
+                              flow.identity_providers[i].icon,
+                            );
+                            provider.icon = icon;
+                            flow.identity_providers[i] = provider;
+                          }
                         }
                         setOAuthAuthenticates(flow.identity_providers);
                       }

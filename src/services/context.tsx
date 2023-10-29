@@ -1,5 +1,4 @@
-import matrixcs, { EmittedEvents } from "matrix-js-sdk";
-import { IHierarchyRoom } from "matrix-js-sdk/lib/@types/spaces";
+import matrixcs, { Room } from "matrix-js-sdk";
 import {
   Accessor,
   JSX,
@@ -11,9 +10,7 @@ import {
 } from "solid-js";
 import { createStore } from "solid-js/store";
 
-export interface IRoom extends IHierarchyRoom {
-  chat: [];
-}
+export interface IRoom extends Room {}
 
 interface IContext {
   data: {
@@ -25,11 +22,15 @@ interface IContext {
   };
   createClient: Accessor<matrixcs.MatrixClient>;
   rooms: Accessor<IRoom[]>;
+  currentRoom: Accessor<IRoom>;
+  handleCurrentRoom: (roomId: string) => void;
+  loading: Accessor<boolean>;
 }
 const Context = createContext<IContext>({} as IContext);
 
 export function ContextProvider(props: { children: JSX.Element }) {
-  const [rooms, setRooms] = createSignal<IHierarchyRoom[]>([]);
+  const [rooms, setRooms] = createSignal<IRoom[]>([]);
+  const [currentRoom, setCurrentRoom] = createSignal<IRoom>();
   const [initial, setInitial] = createSignal(true);
   const [data, setData] = createStore<{
     url: string;
@@ -53,6 +54,14 @@ export function ContextProvider(props: { children: JSX.Element }) {
     return client;
   });
 
+  async function handleCurrentRoom(roomId: string) {
+    const client = createClient();
+    const response = await client.getRoomSummary(roomId);
+    const chat = await client.roomInitialSync(roomId, 10);
+    console.log(chat);
+    setCurrentRoom({ ...response, chat: chat.messages?.chunk || [] });
+  }
+
   createEffect(() => {
     const user = localStorage.getItem("user");
     const clientUrl = localStorage.getItem("clientUrl");
@@ -75,15 +84,10 @@ export function ContextProvider(props: { children: JSX.Element }) {
   async function prepareSync() {
     return new Promise((resolve, reject) => {
       const client = createClient();
-      client.once("sync", function (state, prevState, res) {
-        console.log(state); // state will be 'PREPARED' when the client is ready to use
+      client.on("sync", function (state, prevState, res) {
+        console.log("sync", state); // state will be 'PREPARED' when the client is ready to use
         if (state === "PREPARED") {
-          client.once("sync", function (state, prevState, res) {
-            console.log(state); // state will be 'PREPARED' when the client is ready to use
-            if (state === "SYNCING") {
-              resolve("SYNCING");
-            }
-          });
+          resolve("SYNCING");
         }
       });
     });
@@ -91,23 +95,13 @@ export function ContextProvider(props: { children: JSX.Element }) {
   createEffect(() => {
     async function callback() {
       if (data.url) {
-        setInitial(false);
         const client = createClient();
         await client.startClient();
-        const getRooms = await client.getJoinedRooms();
-        const response = getRooms.joined_rooms.map(async (room) => {
-          const response = await client.getRoomSummary(room);
-          const avatar = client.mxcUrlToHttp(response.avatar_url);
-          response.avatar_url = avatar;
-          return {
-            ...response,
-            chat: [],
-          };
-        });
-        const promises = await Promise.all(response);
-        setRooms(promises);
         await prepareSync();
 
+        setInitial(false);
+        var rooms = client.getRooms();
+        setRooms(rooms);
         client.on("Room.timeline", async function (event, toStartOfTimeline) {
           console.log(event.event);
           const currentRooms = rooms();
@@ -181,7 +175,14 @@ export function ContextProvider(props: { children: JSX.Element }) {
       callback();
     }
   });
-  const values = { data, createClient, rooms: rooms };
+  const values = {
+    data,
+    createClient,
+    rooms: rooms,
+    currentRoom,
+    handleCurrentRoom,
+    loading: initial,
+  };
   return <Context.Provider value={values}>{props.children}</Context.Provider>;
 }
 
