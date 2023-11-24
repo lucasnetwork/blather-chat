@@ -1,4 +1,4 @@
-import matrixcs, { Room } from "matrix-js-sdk";
+import matrixcs, { Room, EventType } from "matrix-js-sdk";
 import {
   Accessor,
   JSX,
@@ -30,7 +30,7 @@ const Context = createContext<IContext>({} as IContext);
 
 export function ContextProvider(props: { children: JSX.Element }) {
   const [rooms, setRooms] = createSignal<IRoom[]>([]);
-  const [currentRoom, setCurrentRoom] = createSignal<IRoom>();
+  const [currentRoom, setCurrentRoom] = createSignal<number>();
   const [initial, setInitial] = createSignal(true);
   const [data, setData] = createStore<{
     url: string;
@@ -56,10 +56,33 @@ export function ContextProvider(props: { children: JSX.Element }) {
 
   async function handleCurrentRoom(roomId: string) {
     const client = createClient();
+    const findRoom = rooms().findIndex((room) => room.roomId === roomId);
+    const chat = await client.roomInitialSync(roomId, 100);
+    if (findRoom > -1) {
+      const roomsArray = rooms();
+      console.log("oi");
+      roomsArray[findRoom] = {
+        ...roomsArray[findRoom],
+        chat: [...chat.messages?.chunk],
+      };
+      setRooms([...roomsArray]);
+      setCurrentRoom(findRoom);
+      return;
+    }
     const response = await client.getRoomSummary(roomId);
-    const chat = await client.roomInitialSync(roomId, 10);
-    console.log(chat);
-    setCurrentRoom({ ...response, chat: chat.messages?.chunk || [] });
+
+    const room = client.getRoom(roomId);
+    const length = rooms().length;
+    console.log("response", response);
+    setRooms((props) => [
+      ...props,
+      {
+        chat: [...chat.messages?.chunk],
+      },
+    ]);
+    setCurrentRoom(length);
+    // const responseRoom = await client.scrollback(room, 100);
+    // console.log("responseRoom", responseRoom);
   }
 
   createEffect(() => {
@@ -101,7 +124,7 @@ export function ContextProvider(props: { children: JSX.Element }) {
 
         setInitial(false);
         var rooms = client.getRooms();
-        setRooms(rooms);
+        setRooms(rooms || []);
         client.on("Room.timeline", async function (event, toStartOfTimeline) {
           console.log(event.event);
           const currentRooms = rooms();
