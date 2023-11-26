@@ -1,3 +1,4 @@
+import { makeEventListener } from "@solid-primitives/event-listener";
 import matrixcs, { Room, EventType } from "matrix-js-sdk";
 import {
   Accessor,
@@ -10,7 +11,16 @@ import {
 } from "solid-js";
 import { createStore } from "solid-js/store";
 
-export interface IRoom extends Room {}
+export interface IRoom extends Room {
+  chat: {
+    content: {
+      message?: string;
+      displayname: string;
+      membership: "join" | "leave";
+    };
+    type: "m.room.member";
+  }[];
+}
 
 interface IContext {
   data: {
@@ -21,15 +31,24 @@ interface IContext {
     };
   };
   createClient: Accessor<matrixcs.MatrixClient>;
-  rooms: Accessor<IRoom[]>;
-  currentRoom: Accessor<IRoom>;
+  rooms: {
+    rooms: IRoom[];
+    chat: any[];
+  };
+  currentRoom: Accessor<number>;
   handleCurrentRoom: (roomId: string) => void;
   loading: Accessor<boolean>;
 }
 const Context = createContext<IContext>({} as IContext);
 
 export function ContextProvider(props: { children: JSX.Element }) {
-  const [rooms, setRooms] = createSignal<IRoom[]>([]);
+  const [rooms, setRooms] = createStore<{
+    rooms: IRoom[];
+    chat: any[];
+  }>({
+    rooms: [],
+    chat: [],
+  });
   const [currentRoom, setCurrentRoom] = createSignal<number>();
   const [initial, setInitial] = createSignal(true);
   const [data, setData] = createStore<{
@@ -56,33 +75,16 @@ export function ContextProvider(props: { children: JSX.Element }) {
 
   async function handleCurrentRoom(roomId: string) {
     const client = createClient();
-    const findRoom = rooms().findIndex((room) => room.roomId === roomId);
-    const chat = await client.roomInitialSync(roomId, 100);
+    const findRoom = rooms.rooms.findIndex((room) => room.roomId === roomId);
+    client.roomInitialSync(roomId, 10);
     if (findRoom > -1) {
-      const roomsArray = rooms();
-      console.log("oi");
-      roomsArray[findRoom] = {
-        ...roomsArray[findRoom],
-        chat: [...chat.messages?.chunk],
-      };
-      setRooms([...roomsArray]);
-      setCurrentRoom(findRoom);
+      try {
+        setCurrentRoom(findRoom);
+      } catch (e) {
+        console.log("error", e);
+      }
       return;
     }
-    const response = await client.getRoomSummary(roomId);
-
-    const room = client.getRoom(roomId);
-    const length = rooms().length;
-    console.log("response", response);
-    setRooms((props) => [
-      ...props,
-      {
-        chat: [...chat.messages?.chunk],
-      },
-    ]);
-    setCurrentRoom(length);
-    // const responseRoom = await client.scrollback(room, 100);
-    // console.log("responseRoom", responseRoom);
   }
 
   createEffect(() => {
@@ -123,50 +125,28 @@ export function ContextProvider(props: { children: JSX.Element }) {
         await prepareSync();
 
         setInitial(false);
-        var rooms = client.getRooms();
-        setRooms(rooms || []);
-        client.on("Room.timeline", async function (event, toStartOfTimeline) {
+        var currentRooms = client.getRooms();
+        setRooms((e) => ({
+          chat: e.chat,
+          rooms: currentRooms || [],
+        }));
+
+        client.on("Room.timeline", function (event, toStartOfTimeline) {
           console.log(event.event);
-          const currentRooms = rooms();
           if (event.event.type === "m.room.encrypted") {
             return;
-            // const get = await client.downloadKeysForUsers(
-            //   [data.user.userId],
-            //   data.user.access_token,
-            // );
-            // console.log("keys", get);
-            // await client.decryptEventIfNeeded(event);
-            // console.log("--->", event);
-            // console.log("--->", event.event);
-            // console.log("--->", event.getContent());
-            // // const response2 = await client.decryptEventIfNeeded(
-            // //   event.event,
-            // // );
-            // // console.log("response2", response2);
           }
           if (event.event.type === "m.room.message") {
-            const findRoom = currentRooms.findIndex(
-              (room) => room.room_id === event.event.room_id,
+            const findRoom = rooms.rooms.findIndex(
+              (room) => room.roomId === event.event.room_id,
             );
-            currentRooms[findRoom] = {
-              ...currentRooms[findRoom],
-              chat: [...currentRooms[findRoom].chat, event.event.content],
-            };
-            setRooms([...currentRooms]);
-          }
-          if (event.event.type === "m.room.create") {
-            console.log("event.event.type", event.event.type);
+            const chat = [...rooms.chat];
+            chat[findRoom] = [event.event, ...(chat[findRoom] || [])];
 
-            const findRoom = currentRooms.find(
-              (room) => room.room_id === event.event.room_id,
-            );
-            if (findRoom) {
-              return;
-            }
-            currentRooms.push({
-              room_id: event.event.room_id,
+            setRooms({
+              chat: chat,
+              rooms: rooms.rooms,
             });
-            setRooms([...currentRooms]);
           }
           if (event.event.type === "m.room.member") {
             if (event.event.content.membership === "leave") {
@@ -177,19 +157,16 @@ export function ContextProvider(props: { children: JSX.Element }) {
                 setRooms([...findRoom]);
               }
             }
-          }
-          if (event.event.type === "m.room.name") {
-            console.log("event.event.type", event.event.type);
-            const findRoom = currentRooms.findIndex(
-              (room) => room.room_id === event.event.room_id,
+            const findRoom = rooms.rooms.findIndex(
+              (room) => room.roomId === event.event.room_id,
             );
-            console.log(event.event.content.name);
-            currentRooms[findRoom] = {
-              ...currentRooms[findRoom],
-              name: event.event.content.name,
-            };
-            console.log(currentRooms);
-            setRooms([...currentRooms]);
+            const chat = [...rooms.chat];
+            chat[findRoom] = [event.event, ...(chat[findRoom] || [])];
+
+            setRooms({
+              chat: chat,
+              rooms: rooms.rooms,
+            });
           }
         });
       }
@@ -198,15 +175,20 @@ export function ContextProvider(props: { children: JSX.Element }) {
       callback();
     }
   });
-  const values = {
-    data,
-    createClient,
-    rooms: rooms,
-    currentRoom,
-    handleCurrentRoom,
-    loading: initial,
-  };
-  return <Context.Provider value={values}>{props.children}</Context.Provider>;
+  return (
+    <Context.Provider
+      value={{
+        data,
+        createClient,
+        rooms: rooms,
+        currentRoom,
+        handleCurrentRoom,
+        loading: initial,
+      }}
+    >
+      {props.children}
+    </Context.Provider>
+  );
 }
 
 export function useContextProvider() {
