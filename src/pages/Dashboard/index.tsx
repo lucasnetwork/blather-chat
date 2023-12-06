@@ -10,8 +10,7 @@ const Dashboard = () => {
   const sendMessage = () => {
     const client = createClient();
     const roomId = currentRoom();
-    console.log("roomId", roomId);
-    client.sendMessage(roomId.room_id, {
+    client.sendMessage(rooms.rooms[roomId].id, {
       msgtype: "m.text",
       body: message(),
     });
@@ -43,7 +42,11 @@ const Dashboard = () => {
                     const client = createClient();
 
                     const room = rooms.rooms[currentRoom()];
-                    await client.scrollback(room, 10);
+                    const roomData = client.getRoom(room.id);
+                    if (!roomData) {
+                      return;
+                    }
+                    await client.scrollback(roomData, 10);
                     divRef.scrollTop = 20;
                   }
                 } catch (e) {
@@ -51,9 +54,10 @@ const Dashboard = () => {
                 }
               }}
             >
-              <div class=" h-[110%]">
+              <div class="pt-9 flex flex-col h-[110%] gap-y-4">
                 <For each={rooms.chat[currentRoom() || 0]}>
                   {(chat) => {
+                    const client = createClient();
                     if (chat.type === "m.room.member") {
                       return (
                         <p>
@@ -69,7 +73,30 @@ const Dashboard = () => {
                         </p>
                       );
                     }
-                    return <p>{chat.content.body}</p>;
+                    return (
+                      <div
+                        class={`flex items-center gap-x-2 ${
+                          chat.sender === client.credentials.userId
+                            ? "self-end"
+                            : ""
+                        }`}
+                      >
+                        <p>{chat.content.body}</p>
+                        <Show
+                          when={chat.image}
+                          fallback={
+                            <div class="w-8 h-8 rounded-full bg-black text-white flex items-center justify-center">
+                              A
+                            </div>
+                          }
+                        >
+                          <img
+                            src={chat.image}
+                            class="object-cover w-8 h-8 rounded-full"
+                          />
+                        </Show>
+                      </div>
+                    );
                   }}
                 </For>
               </div>

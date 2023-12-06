@@ -1,5 +1,4 @@
-import { makeEventListener } from "@solid-primitives/event-listener";
-import matrixcs, { Room, EventType } from "matrix-js-sdk";
+import matrixcs, { Room } from "matrix-js-sdk";
 import {
   Accessor,
   JSX,
@@ -11,15 +10,10 @@ import {
 } from "solid-js";
 import { createStore } from "solid-js/store";
 
-export interface IRoom extends Room {
-  chat: {
-    content: {
-      message?: string;
-      displayname: string;
-      membership: "join" | "leave";
-    };
-    type: "m.room.member";
-  }[];
+export interface IRoom {
+  id: string;
+  profileUrl: string;
+  name: string;
 }
 
 interface IContext {
@@ -75,7 +69,7 @@ export function ContextProvider(props: { children: JSX.Element }) {
 
   async function handleCurrentRoom(roomId: string) {
     const client = createClient();
-    const findRoom = rooms.rooms.findIndex((room) => room.roomId === roomId);
+    const findRoom = rooms.rooms.findIndex((room) => room.id === roomId);
     client.roomInitialSync(roomId, 10);
     if (findRoom > -1) {
       try {
@@ -126,19 +120,58 @@ export function ContextProvider(props: { children: JSX.Element }) {
 
         setInitial(false);
         var currentRooms = client.getRooms();
+        const newRooms = currentRooms.map((room) => ({
+          name: room.name,
+          id: room.roomId,
+          profileUrl: room.getAvatarUrl(client.baseUrl, 32, 32),
+        }));
         setRooms((e) => ({
           chat: e.chat,
-          rooms: currentRooms || [],
+          rooms: newRooms,
         }));
 
-        client.on("Room.timeline", function (event, toStartOfTimeline) {
+        client.on("Room.timeline", async function (event, toStartOfTimeline) {
           console.log(event.event);
           if (event.event.type === "m.room.encrypted") {
             return;
           }
+          if (event.event.type === "m.room.name") {
+            const findRoom = rooms.rooms.findIndex(
+              (room) => room.id === event.event.room_id,
+            );
+            const newRooms = [...rooms.rooms];
+            newRooms[findRoom] = {
+              ...newRooms[findRoom],
+              name: event.event.content.name,
+            };
+            setRooms({
+              chat: rooms.chat,
+              rooms: newRooms,
+            });
+            return;
+          }
+          if (event.event.type === "m.room.create") {
+            const findRoom = rooms.rooms.length;
+            const chat = [...rooms.chat];
+            chat[findRoom] = [event.event];
+            const room = await client.getRoomSummary(event.event.room_id);
+            console.log(room);
+            const newRooms = [
+              ...rooms.rooms,
+              {
+                id: event.event.room_id,
+              },
+            ];
+
+            setRooms({
+              chat: chat,
+              rooms: newRooms,
+            });
+            return;
+          }
           if (event.event.type === "m.room.message") {
             const findRoom = rooms.rooms.findIndex(
-              (room) => room.roomId === event.event.room_id,
+              (room) => room.id === event.event.room_id,
             );
             const chat = [...rooms.chat];
             chat[findRoom] = [event.event, ...(chat[findRoom] || [])];
@@ -158,7 +191,7 @@ export function ContextProvider(props: { children: JSX.Element }) {
               }
             }
             const findRoom = rooms.rooms.findIndex(
-              (room) => room.roomId === event.event.room_id,
+              (room) => room.id === event.event.room_id,
             );
             const chat = [...rooms.chat];
             chat[findRoom] = [event.event, ...(chat[findRoom] || [])];
