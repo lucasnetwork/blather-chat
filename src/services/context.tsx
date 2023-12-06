@@ -180,14 +180,18 @@ export function ContextProvider(props: { children: JSX.Element }) {
               chat: chat,
               rooms: rooms.rooms,
             });
+            return;
           }
           if (event.event.type === "m.room.member") {
             if (event.event.content.membership === "leave") {
               if (event.event.sender === data.user.userId) {
-                const findRoom = currentRooms.filter(
-                  (room) => room.room_id !== event.event.room_id,
+                const findRoom = rooms.rooms.filter(
+                  (room) => room.id !== event.event.room_id,
                 );
-                setRooms([...findRoom]);
+                setRooms({
+                  chat: rooms.chat,
+                  rooms: findRoom,
+                });
               }
             }
             const findRoom = rooms.rooms.findIndex(
