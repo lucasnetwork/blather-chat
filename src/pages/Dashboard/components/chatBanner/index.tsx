@@ -33,7 +33,7 @@ const ChatBanner = (props: IChatBanner) => {
         </Show>
       </div>
       <div>
-        <h2>{props.room?.name}</h2>
+        <h2 class="text-white">{props.room?.name}</h2>
       </div>
     </button>
   );

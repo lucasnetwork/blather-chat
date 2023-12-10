@@ -25,11 +25,17 @@ const Dashboard = () => {
     }
     console.log("cuttentRoom", currentRoom());
   });
+  console.log("rooms.chat", rooms.chat);
   return (
     <div class="flex h-full w-full">
       <Show when={!loading()}>
-        <aside class="h-full w-full max-w-sm border-r-red-800 border overflow-auto">
-          <For each={rooms.rooms}>{(room) => <ChatBanner room={room} />}</For>
+        <aside class="h-full w-full max-w-sm flex flex-col bg-darkI">
+          <div class="bg-darkII pl-3 py-3">
+            <h1 class="text-white text-2xl">Chat</h1>
+          </div>
+          <div class="overflow-auto flex-1 scroll-smooth scrollbar-hide">
+            <For each={rooms.rooms}>{(room) => <ChatBanner room={room} />}</For>
+          </div>
         </aside>
         <main class="flex-1 flex flex-col overflow-auto ">
           <Show when={currentRoom() !== undefined}>
@@ -54,13 +60,18 @@ const Dashboard = () => {
                 }
               }}
             >
-              <div class="pt-9 flex flex-col h-[110%] gap-y-4">
+              <div
+                class="pt-9 flex flex-col gap-y-4 bg-dark px-4 pb-4"
+                style={{
+                  height: "calc(100% + 5rem)",
+                }}
+              >
                 <For each={rooms.chat[currentRoom() || 0]}>
                   {(chat) => {
                     const client = createClient();
                     if (chat.type === "m.room.member") {
                       return (
-                        <p>
+                        <p class="text-white">
                           {chat.content.displayname}{" "}
                           <Switch>
                             <Match when={chat.content.membership === "join"}>
@@ -81,7 +92,7 @@ const Dashboard = () => {
                             : ""
                         }`}
                       >
-                        <p>{chat.content.body}</p>
+                        <p class="text-white">{chat.content.body}</p>
                         <Show
                           when={chat.image}
                           fallback={
@@ -102,14 +113,14 @@ const Dashboard = () => {
               </div>
             </div>
             <form
-              class="flex "
+              class="flex bg-darkI"
               onSubmit={(e) => {
                 e.preventDefault();
                 sendMessage();
               }}
             >
               <input
-                class="pr-4 pl-4 py-3 flex-1"
+                class="pr-4 pl-4 py-3 flex-1 bg-transparent"
                 onChange={(e) => setMessage(e.target.value)}
                 placeholder="digite a mensagem"
               />

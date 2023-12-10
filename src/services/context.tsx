@@ -1,4 +1,4 @@
-import matrixcs, { Room } from "matrix-js-sdk";
+import matrixcs from "matrix-js-sdk";
 import {
   Accessor,
   JSX,
@@ -30,6 +30,7 @@ interface IContext {
     chat: any[];
   };
   currentRoom: Accessor<number>;
+  // eslint-disable-next-line no-unused-vars
   handleCurrentRoom: (roomId: string) => void;
   loading: Accessor<boolean>;
 }
@@ -101,7 +102,8 @@ export function ContextProvider(props: { children: JSX.Element }) {
   });
 
   async function prepareSync() {
-    return new Promise((resolve, reject) => {
+    // eslint-disable-next-line solid/reactivity
+    return new Promise((resolve) => {
       const client = createClient();
       client.on("sync", function (state, prevState, res) {
         console.log("sync", state); // state will be 'PREPARED' when the client is ready to use
@@ -175,7 +177,7 @@ export function ContextProvider(props: { children: JSX.Element }) {
             );
             const chat = [...rooms.chat];
             chat[findRoom] = [event.event, ...(chat[findRoom] || [])];
-
+            console.log(chat);
             setRooms({
               chat: chat,
               rooms: rooms.rooms,
