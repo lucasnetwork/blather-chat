@@ -24,7 +24,7 @@ const ChatBanner = (props: IChatBanner) => {
         <Show
           when={url()}
           fallback={
-            <div class="w-8 h-8 rounded-full bg-black text-white flex items-center justify-center">
+            <div class="w-8 h-8 rounded-full bg-darkII text-white flex items-center justify-center">
               {props.room?.name && props.room?.name[0]}
             </div>
           }

@@ -16,6 +16,15 @@ export interface IRoom {
   name: string;
 }
 
+export interface IChat {
+  message: string;
+  sender: string;
+  displayName: string;
+  membership: string;
+  type: "m.room.member" | "m.room.message";
+  image?: string;
+}
+
 interface IContext {
   data: {
     url: string;
@@ -27,7 +36,7 @@ interface IContext {
   createClient: Accessor<matrixcs.MatrixClient>;
   rooms: {
     rooms: IRoom[];
-    chat: any[];
+    chat: IChat[][];
   };
   currentRoom: Accessor<number>;
   // eslint-disable-next-line no-unused-vars
@@ -39,7 +48,7 @@ const Context = createContext<IContext>({} as IContext);
 export function ContextProvider(props: { children: JSX.Element }) {
   const [rooms, setRooms] = createStore<{
     rooms: IRoom[];
-    chat: any[];
+    chat: IChat[];
   }>({
     rooms: [],
     chat: [],
@@ -125,7 +134,7 @@ export function ContextProvider(props: { children: JSX.Element }) {
         const newRooms = currentRooms.map((room) => ({
           name: room.name,
           id: room.roomId,
-          profileUrl: room.getAvatarUrl(client.baseUrl, 32, 32),
+          profileUrl: room.getAvatarUrl(client.baseUrl, 32, 32, "scale"),
         }));
         setRooms((e) => ({
           chat: e.chat,
@@ -155,6 +164,7 @@ export function ContextProvider(props: { children: JSX.Element }) {
           if (event.event.type === "m.room.create") {
             const findRoom = rooms.rooms.length;
             const chat = [...rooms.chat];
+            console.log(event.event);
             chat[findRoom] = [event.event];
             const room = await client.getRoomSummary(event.event.room_id);
             console.log(room);
@@ -175,8 +185,21 @@ export function ContextProvider(props: { children: JSX.Element }) {
             const findRoom = rooms.rooms.findIndex(
               (room) => room.id === event.event.room_id,
             );
+            const user = client.getUser(event.event.user_id);
+            const image = client.mxcUrlToHttp(user?.avatarUrl);
+            console.log("image", image);
             const chat = [...rooms.chat];
-            chat[findRoom] = [event.event, ...(chat[findRoom] || [])];
+            chat[findRoom] = [
+              {
+                message: event.event.content.body,
+                sender: event.event.sender,
+                displayName: user?.displayName,
+                membership: event.event.content.membership,
+                type: event.event.type,
+                image,
+              },
+              ...(chat[findRoom] || []),
+            ];
             console.log(chat);
             setRooms({
               chat: chat,
@@ -196,11 +219,23 @@ export function ContextProvider(props: { children: JSX.Element }) {
                 });
               }
             }
+            const user = client.getUser(event.event.user_id);
             const findRoom = rooms.rooms.findIndex(
               (room) => room.id === event.event.room_id,
             );
+            const image = client.mxcUrlToHttp(user.avatar_url);
             const chat = [...rooms.chat];
-            chat[findRoom] = [event.event, ...(chat[findRoom] || [])];
+            chat[findRoom] = [
+              {
+                type: event.event.type,
+                displayName: user?.displayName,
+                membership: event.event.content.membership,
+                message: "",
+                sender: event.event.sender,
+                image,
+              },
+              ...(chat[findRoom] || []),
+            ];
 
             setRooms({
               chat: chat,

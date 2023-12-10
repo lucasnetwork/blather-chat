@@ -15,10 +15,7 @@ const Dashboard = () => {
       body: message(),
     });
   };
-  // console.log(rooms());
-  createEffect(() => {
-    console.log("rooms", rooms);
-  });
+
   createEffect(() => {
     if (currentRoom() !== undefined) {
       divRef.scrollTop = divRef.scrollHeight;
@@ -29,11 +26,11 @@ const Dashboard = () => {
   return (
     <div class="flex h-full w-full">
       <Show when={!loading()}>
-        <aside class="h-full w-full max-w-sm flex flex-col bg-darkI">
+        <aside class="h-full w-full max-w-sm flex flex-col ">
           <div class="bg-darkII pl-3 py-3">
             <h1 class="text-white text-2xl">Chat</h1>
           </div>
-          <div class="overflow-auto flex-1 scroll-smooth scrollbar-hide">
+          <div class="overflow-auto bg-darkI flex-1 scroll-smooth scrollbar-hide">
             <For each={rooms.rooms}>{(room) => <ChatBanner room={room} />}</For>
           </div>
         </aside>
@@ -71,41 +68,59 @@ const Dashboard = () => {
                     const client = createClient();
                     if (chat.type === "m.room.member") {
                       return (
-                        <p class="text-white">
-                          {chat.content.displayname}{" "}
-                          <Switch>
-                            <Match when={chat.content.membership === "join"}>
-                              Entrou no chat
-                            </Match>
-                            <Match when={chat.content.membership === "leave"}>
-                              Saiu do Chat
-                            </Match>
-                          </Switch>
-                        </p>
+                        <div class="flex  self-center gap-x-4">
+                          <Show
+                            when={chat.image}
+                            fallback={
+                              <div class="w-4 h-4 rounded-full bg-darkI  text-white flex items-center justify-center">
+                                {chat?.displayName[0]}
+                              </div>
+                            }
+                          >
+                            <img
+                              src={chat.image}
+                              class="object-cover w-4 h-4 rounded-full"
+                            />
+                          </Show>
+                          <p class="text-white text-xs text-slate-200">
+                            {chat.displayName}{" "}
+                            <Switch>
+                              <Match when={chat.membership === "join"}>
+                                Entrou no chat
+                              </Match>
+                              <Match when={chat.membership === "leave"}>
+                                Saiu do Chat
+                              </Match>
+                            </Switch>
+                          </p>
+                        </div>
                       );
                     }
                     return (
                       <div
-                        class={`flex items-center gap-x-2 ${
+                        class={`flex flex-col gap-y-2 ${
                           chat.sender === client.credentials.userId
                             ? "self-end"
                             : ""
                         }`}
                       >
-                        <p class="text-white">{chat.content.body}</p>
-                        <Show
-                          when={chat.image}
-                          fallback={
-                            <div class="w-8 h-8 rounded-full bg-black text-white flex items-center justify-center">
-                              A
-                            </div>
-                          }
-                        >
-                          <img
-                            src={chat.image}
-                            class="object-cover w-8 h-8 rounded-full"
-                          />
-                        </Show>
+                        <div class="flex gap-x-4">
+                          <Show
+                            when={chat.image}
+                            fallback={
+                              <div class="w-8 h-8 rounded-full bg-darkII text-white flex items-center justify-center">
+                                {chat.displayName[0]}
+                              </div>
+                            }
+                          >
+                            <img
+                              src={chat.image}
+                              class="object-cover w-8 h-8 rounded-full"
+                            />
+                          </Show>
+                          <p class="text-white">{chat.displayName}</p>
+                        </div>
+                        <p class="text-white">{chat.message}</p>
                       </div>
                     );
                   }}

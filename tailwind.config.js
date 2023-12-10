@@ -4,9 +4,9 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        dark: "#121212",
-        darkI: "rgba(18, 18, 18, 0.95)",
-        darkII: "rgba(18, 18, 18, 0.93)",
+        dark: "rgba(255, 255, 255, 0.0)",
+        darkI: "rgba(255, 255, 255, 0.05)",
+        darkII: "rgba(255, 255, 255, 0.07)",
       },
     },
   },
