@@ -37,6 +37,7 @@ interface IContext {
   rooms: {
     rooms: IRoom[];
     chat: IChat[][];
+    invites: IRoom[];
   };
   currentRoom: Accessor<number>;
   // eslint-disable-next-line no-unused-vars
@@ -49,9 +50,11 @@ export function ContextProvider(props: { children: JSX.Element }) {
   const [rooms, setRooms] = createStore<{
     rooms: IRoom[];
     chat: IChat[];
+    invites: IRoom[];
   }>({
     rooms: [],
     chat: [],
+    invites: [],
   });
   const [currentRoom, setCurrentRoom] = createSignal<number>();
   const [initial, setInitial] = createSignal(true);
@@ -131,14 +134,25 @@ export function ContextProvider(props: { children: JSX.Element }) {
 
         setInitial(false);
         var currentRooms = client.getRooms();
-        const newRooms = currentRooms.map((room) => ({
-          name: room.name,
-          id: room.roomId,
-          profileUrl: room.getAvatarUrl(client.baseUrl, 32, 32, "scale"),
-        }));
+        console.log("currentRooms", currentRooms);
+        const newRooms: IRoom[] = [];
+        const newRoomsInvited: IRoom[] = [];
+        currentRooms.forEach((room) => {
+          const newRoom = {
+            name: room.name,
+            id: room.roomId,
+            profileUrl: room.getAvatarUrl(client.baseUrl, 32, 32, "scale"),
+          };
+          if (room.selfMembership === "invite") {
+            newRoomsInvited.push(newRoom);
+            return;
+          }
+          newRooms.push(newRoom);
+        });
         setRooms((e) => ({
           chat: e.chat,
           rooms: newRooms,
+          invites: newRoomsInvited,
         }));
 
         client.on("Room.timeline", async function (event, toStartOfTimeline) {

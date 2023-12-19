@@ -4,7 +4,7 @@ import ChatBanner from "./components/chatBanner";
 
 const Dashboard = () => {
   const { rooms, currentRoom, loading, createClient } = useContextProvider();
-
+  const [currentTypeAsideBar, setCurrentTypeAsideBar] = createSignal("join");
   const [message, setMessage] = createSignal();
   let divRef: HTMLDivElement | undefined;
   const sendMessage = () => {
@@ -17,21 +17,57 @@ const Dashboard = () => {
   };
 
   createEffect(() => {
+    if (!divRef) {
+      return;
+    }
     if (currentRoom() !== undefined) {
       divRef.scrollTop = divRef.scrollHeight;
     }
-    console.log("cuttentRoom", currentRoom());
   });
-  console.log("rooms.chat", rooms.chat);
   return (
     <div class="flex h-full w-full">
       <Show when={!loading()}>
         <aside class="h-full w-full max-w-sm flex flex-col ">
-          <div class="bg-darkII pl-3 py-3">
+          <div class="bg-darkIII pl-3 py-3">
             <h1 class="text-white text-2xl">Chat</h1>
           </div>
+          <div class="flex">
+            <button
+              type="button"
+              class={`${
+                currentTypeAsideBar() === "join" ? "bg-darkIII" : "bg-darkII"
+              } pl-3 py-3 flex-1 text-xl text-white`}
+              onClick={() => {
+                setCurrentTypeAsideBar("join");
+              }}
+            >
+              Chats
+            </button>
+            <button
+              class={`${
+                currentTypeAsideBar() === "invite" ? "bg-darkIII" : "bg-darkII"
+              } pl-3 py-3 flex-1 text-xl text-white`}
+              type="button"
+              onClick={() => {
+                setCurrentTypeAsideBar("invite");
+              }}
+            >
+              Convites
+            </button>
+          </div>
           <div class="overflow-auto bg-darkI flex-1 scroll-smooth scrollbar-hide">
-            <For each={rooms.rooms}>{(room) => <ChatBanner room={room} />}</For>
+            <Switch>
+              <Match when={currentTypeAsideBar() === "join"}>
+                <For each={rooms.rooms}>
+                  {(room) => <ChatBanner room={room} />}
+                </For>
+              </Match>
+              <Match when={currentTypeAsideBar() === "invite"}>
+                <For each={rooms.invites}>
+                  {(room) => <ChatBanner room={room} />}
+                </For>
+              </Match>
+            </Switch>
           </div>
         </aside>
         <main class="flex-1 flex flex-col overflow-auto ">
@@ -41,17 +77,18 @@ const Dashboard = () => {
               ref={divRef}
               onScroll={async (e) => {
                 try {
-                  if (e.target.scrollTop == 0) {
-                    const client = createClient();
-
-                    const room = rooms.rooms[currentRoom()];
-                    const roomData = client.getRoom(room.id);
-                    if (!roomData) {
-                      return;
-                    }
-                    await client.scrollback(roomData, 10);
-                    divRef.scrollTop = 20;
+                  if (e.target.scrollTop !== 0 || !divRef) {
+                    return;
                   }
+                  const client = createClient();
+
+                  const room = rooms.rooms[currentRoom()];
+                  const roomData = client.getRoom(room.id);
+                  if (!roomData) {
+                    return;
+                  }
+                  await client.scrollback(roomData, 10);
+                  divRef.scrollTop = 20;
                 } catch (e) {
                   console.log("er", e);
                 }
