@@ -43,6 +43,7 @@ interface IContext {
   // eslint-disable-next-line no-unused-vars
   handleCurrentRoom: (roomId: string) => void;
   loading: Accessor<boolean>;
+  initCreateRoom: () => void;
 }
 const Context = createContext<IContext>({} as IContext);
 
@@ -79,6 +80,10 @@ export function ContextProvider(props: { children: JSX.Element }) {
     client.setAccessToken(data.user.access_token);
     return client;
   });
+
+  async function initCreateRoom() {
+    setCurrentRoom("create");
+  }
 
   async function handleCurrentRoom(roomId: string) {
     const client = createClient();
@@ -134,7 +139,6 @@ export function ContextProvider(props: { children: JSX.Element }) {
 
         setInitial(false);
         var currentRooms = client.getRooms();
-        console.log("currentRooms", currentRooms);
         const newRooms: IRoom[] = [];
         const newRoomsInvited: IRoom[] = [];
         currentRooms.forEach((room) => {
@@ -272,6 +276,7 @@ export function ContextProvider(props: { children: JSX.Element }) {
         currentRoom,
         handleCurrentRoom,
         loading: initial,
+        initCreateRoom,
       }}
     >
       {props.children}
