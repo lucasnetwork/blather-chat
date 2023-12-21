@@ -1,6 +1,7 @@
 import { For, Match, Show, Switch, createEffect, createSignal } from "solid-js";
 import { useContextProvider } from "../../services/context";
 import ChatBanner from "./components/chatBanner";
+import ChatInvited from "./components/chatInvited";
 
 const Dashboard = () => {
   const { rooms, currentRoom, loading, createClient } = useContextProvider();
@@ -10,6 +11,7 @@ const Dashboard = () => {
   const sendMessage = () => {
     const client = createClient();
     const roomId = currentRoom();
+
     client.sendMessage(rooms.rooms[roomId].id, {
       msgtype: "m.text",
       body: message(),
@@ -64,7 +66,7 @@ const Dashboard = () => {
               </Match>
               <Match when={currentTypeAsideBar() === "invite"}>
                 <For each={rooms.invites}>
-                  {(room) => <ChatBanner room={room} />}
+                  {(room) => <ChatInvited room={room} />}
                 </For>
               </Match>
             </Switch>
@@ -81,7 +83,6 @@ const Dashboard = () => {
                     return;
                   }
                   const client = createClient();
-
                   const room = rooms.rooms[currentRoom()];
                   const roomData = client.getRoom(room.id);
                   if (!roomData) {
