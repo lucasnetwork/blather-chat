@@ -28,14 +28,31 @@ interface IMensageImage extends IMensage {
   image: string;
 }
 
+type eventType =
+  | "m.room.member"
+  | "m.room.message"
+  | "m.room.encrypted"
+  | "m.room.name";
+
 type UnknowMessageType = IMensageImage | IMensageText;
 export interface IChat {
   message: UnknowMessageType;
   sender: string;
   displayName: string;
   membership: string;
-  type: "m.room.member" | "m.room.message";
+  type: eventType;
   image?: string;
+}
+
+interface Event {
+  type: eventType;
+  room_id: string;
+}
+interface EventRoomName extends Event {
+  type: "m.room.name";
+  content: {
+    name: string;
+  };
 }
 
 interface IContext {
@@ -52,7 +69,7 @@ interface IContext {
     chat: IChat[][];
     invites: IRoom[];
   };
-  currentRoom: Accessor<number>;
+  currentRoom: Accessor<number | "create">;
   // eslint-disable-next-line no-unused-vars
   handleCurrentRoom: (roomId: string) => void;
   loading: Accessor<boolean>;
@@ -70,7 +87,7 @@ export function ContextProvider(props: { children: JSX.Element }) {
     chat: [],
     invites: [],
   });
-  const [currentRoom, setCurrentRoom] = createSignal<number>();
+  const [currentRoom, setCurrentRoom] = createSignal<number | "create">();
   const [initial, setInitial] = createSignal(true);
   const [data, setData] = createStore<{
     url: string;
@@ -98,7 +115,7 @@ export function ContextProvider(props: { children: JSX.Element }) {
     setCurrentRoom("create");
   }
 
-  const handleEvent = async (event, toStartOfTimeline) => {
+  const handleEvent = async (event: { event: EventRoomName }) => {
     const client = createClient();
     if (event.event.type === "m.room.encrypted") {
       return;
@@ -146,7 +163,7 @@ export function ContextProvider(props: { children: JSX.Element }) {
       const image = client.mxcUrlToHttp(user?.avatarUrl);
       const chat = [...rooms.chat];
       let mensage: UnknowMessageType = {
-        type: "m.text",
+        msgType: "m.text",
         text: event.event.content.body,
       };
       if (event.event.content.msgtype === "m.image") {
@@ -154,7 +171,7 @@ export function ContextProvider(props: { children: JSX.Element }) {
         console.log("image", image);
         mensage = {
           msgType: "m.image",
-          image: image,
+          image: image || "",
         };
       }
       chat[findRoom] = [
