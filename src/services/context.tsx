@@ -16,8 +16,21 @@ export interface IRoom {
   name: string;
 }
 
+interface IMensage {
+  msgType: "m.image" | "m.text";
+}
+interface IMensageText extends IMensage {
+  msgType: "m.text";
+  text: string;
+}
+interface IMensageImage extends IMensage {
+  msgType: "m.image";
+  image: string;
+}
+
+type UnknowMessageType = IMensageImage | IMensageText;
 export interface IChat {
-  message: string;
+  message: UnknowMessageType;
   sender: string;
   displayName: string;
   membership: string;
@@ -85,10 +98,125 @@ export function ContextProvider(props: { children: JSX.Element }) {
     setCurrentRoom("create");
   }
 
+  const handleEvent = async (event, toStartOfTimeline) => {
+    const client = createClient();
+    if (event.event.type === "m.room.encrypted") {
+      return;
+    }
+    if (event.event.type === "m.room.name") {
+      const findRoom = rooms.rooms.findIndex(
+        (room) => room.id === event.event.room_id,
+      );
+      const newRooms = [...rooms.rooms];
+      newRooms[findRoom] = {
+        ...newRooms[findRoom],
+        name: event.event.content.name,
+      };
+      setRooms({
+        chat: rooms.chat,
+        rooms: newRooms,
+      });
+      return;
+    }
+    if (event.event.type === "m.room.create") {
+      const findRoom = rooms.rooms.length;
+      const chat = [...rooms.chat];
+      console.log(event.event);
+      chat[findRoom] = [event.event];
+      const room = await client.getRoomSummary(event.event.room_id);
+      console.log(room);
+      const newRooms = [
+        ...rooms.rooms,
+        {
+          id: event.event.room_id,
+        },
+      ];
+
+      setRooms({
+        chat: chat,
+        rooms: newRooms,
+      });
+      return;
+    }
+    if (event.event.type === "m.room.message") {
+      const findRoom = rooms.rooms.findIndex(
+        (room) => room.id === event.event.room_id,
+      );
+      const user = client.getUser(event.event.user_id);
+      const image = client.mxcUrlToHttp(user?.avatarUrl);
+      const chat = [...rooms.chat];
+      let mensage: UnknowMessageType = {
+        type: "m.text",
+        text: event.event.content.body,
+      };
+      if (event.event.content.msgtype === "m.image") {
+        const image = client.mxcUrlToHttp(event.event.content.url);
+        console.log("image", image);
+        mensage = {
+          msgType: "m.image",
+          image: image,
+        };
+      }
+      chat[findRoom] = [
+        {
+          message: mensage,
+          sender: event.event.sender,
+          displayName: user?.displayName,
+          membership: event.event.content.membership,
+          type: event.event.type,
+          image,
+        },
+        ...(chat[findRoom] || []),
+      ];
+      console.log(chat);
+      setRooms({
+        chat: chat,
+        rooms: rooms.rooms,
+      });
+      return;
+    }
+    if (event.event.type === "m.room.member") {
+      if (event.event.content.membership === "leave") {
+        if (event.event.sender === data.user.userId) {
+          const findRoom = rooms.rooms.filter(
+            (room) => room.id !== event.event.room_id,
+          );
+          setRooms({
+            chat: rooms.chat,
+            rooms: findRoom,
+          });
+        }
+      }
+      const user = client.getUser(event.event.user_id);
+      const findRoom = rooms.rooms.findIndex(
+        (room) => room.id === event.event.room_id,
+      );
+      const image = client.mxcUrlToHttp(user.avatar_url);
+      const chat = [...rooms.chat];
+      chat[findRoom] = [
+        {
+          type: event.event.type,
+          displayName: user?.displayName,
+          membership: event.event.content.membership,
+          message: "",
+          sender: event.event.sender,
+          image,
+        },
+        ...(chat[findRoom] || []),
+      ];
+
+      setRooms({
+        chat: chat,
+        rooms: rooms.rooms,
+      });
+    }
+  };
+
   async function handleCurrentRoom(roomId: string) {
     const client = createClient();
     const findRoom = rooms.rooms.findIndex((room) => room.id === roomId);
-    client.roomInitialSync(roomId, 10);
+    const response = await client.roomInitialSync(roomId, 10);
+    response.messages?.chunk.forEach((e) => handleEvent({ event: e }));
     if (findRoom > -1) {
       try {
         setCurrentRoom(findRoom);
@@ -159,108 +287,7 @@ export function ContextProvider(props: { children: JSX.Element }) {
           invites: newRoomsInvited,
         }));
 
-        client.on("Room.timeline", async function (event, toStartOfTimeline) {
-          console.log(event.event);
-          if (event.event.type === "m.room.encrypted") {
-            return;
-          }
-          if (event.event.type === "m.room.name") {
-            const findRoom = rooms.rooms.findIndex(
-              (room) => room.id === event.event.room_id,
-            );
-            const newRooms = [...rooms.rooms];
-            newRooms[findRoom] = {
-              ...newRooms[findRoom],
-              name: event.event.content.name,
-            };
-            setRooms({
-              chat: rooms.chat,
-              rooms: newRooms,
-            });
-            return;
-          }
-          if (event.event.type === "m.room.create") {
-            const findRoom = rooms.rooms.length;
-            const chat = [...rooms.chat];
-            console.log(event.event);
-            chat[findRoom] = [event.event];
-            const room = await client.getRoomSummary(event.event.room_id);
-            console.log(room);
-            const newRooms = [
-              ...rooms.rooms,
-              {
-                id: event.event.room_id,
-              },
-            ];
-
-            setRooms({
-              chat: chat,
-              rooms: newRooms,
-            });
-            return;
-          }
-          if (event.event.type === "m.room.message") {
-            const findRoom = rooms.rooms.findIndex(
-              (room) => room.id === event.event.room_id,
-            );
-            const user = client.getUser(event.event.user_id);
-            const image = client.mxcUrlToHttp(user?.avatarUrl);
-            console.log("image", image);
-            const chat = [...rooms.chat];
-            chat[findRoom] = [
-              {
-                message: event.event.content.body,
-                sender: event.event.sender,
-                displayName: user?.displayName,
-                membership: event.event.content.membership,
-                type: event.event.type,
-                image,
-              },
-              ...(chat[findRoom] || []),
-            ];
-            console.log(chat);
-            setRooms({
-              chat: chat,
-              rooms: rooms.rooms,
-            });
-            return;
-          }
-          if (event.event.type === "m.room.member") {
-            if (event.event.content.membership === "leave") {
-              if (event.event.sender === data.user.userId) {
-                const findRoom = rooms.rooms.filter(
-                  (room) => room.id !== event.event.room_id,
-                );
-                setRooms({
-                  chat: rooms.chat,
-                  rooms: findRoom,
-                });
-              }
-            }
-            const user = client.getUser(event.event.user_id);
-            const findRoom = rooms.rooms.findIndex(
-              (room) => room.id === event.event.room_id,
-            );
-            const image = client.mxcUrlToHttp(user.avatar_url);
-            const chat = [...rooms.chat];
-            chat[findRoom] = [
-              {
-                type: event.event.type,
-                displayName: user?.displayName,
-                membership: event.event.content.membership,
-                message: "",
-                sender: event.event.sender,
-                image,
-              },
-              ...(chat[findRoom] || []),
-            ];
-
-            setRooms({
-              chat: chat,
-              rooms: rooms.rooms,
-            });
-          }
-        });
+        client.on("Room.timeline", handleEvent);
       }
     }
     if (initial()) {
