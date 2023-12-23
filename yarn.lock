@@ -3412,6 +3412,11 @@ solid-devtools@^0.27.3:
     "@solid-devtools/debugger" "^0.22.4"
     "@solid-devtools/shared" "^0.12.3"
 
+solid-dzone@^1.0.0:
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/solid-dzone/-/solid-dzone-1.0.0.tgz#de817f282d6bc393d9dd2f203306139452d55838"
+  integrity sha512-kN2c4XaPZFmJxsyiwJLxH3nNXMOx7+G7bguzv/SrYvZGGr2vfOvWBZ2s26D8lqx6rPr5UsMDOF5/gqb0iGp+hA==
+
 solid-grecaptcha@^0.1.6:
   version "0.1.6"
   resolved "https://registry.yarnpkg.com/solid-grecaptcha/-/solid-grecaptcha-0.1.6.tgz#e232f64e8e2b70adb3aa0a1a6574a9d25a5b7849"
@@ -3426,6 +3431,11 @@ solid-hcaptcha@^0.3.0:
   dependencies:
     "@hcaptcha/types" "^1.0.3"
     "@solid-primitives/script-loader" "^2.0.2"
+
+solid-icons@^1.1.0:
+  version "1.1.0"
+  resolved "https://registry.yarnpkg.com/solid-icons/-/solid-icons-1.1.0.tgz#6e914bce4f9a34a654230b68c68a7d04359ff2b6"
+  integrity sha512-IesTfr/F1ElVwH2E1110s2RPXH4pujKfSs+koT8rwuTAdleO5s26lNSpqJV7D1+QHooJj18mcOiz2PIKs0ic+A==
 
 solid-js@^1.7.6:
   version "1.7.11"
